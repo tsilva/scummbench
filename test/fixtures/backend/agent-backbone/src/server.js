@@ -8,7 +8,7 @@ const { values } = parseArgs({ options: {
   'result-file': { type: 'string' }, 'stop-condition': { type: 'string' },
 } });
 const mode = new URL(values['base-url']).hostname.split('.')[0];
-const revision = { commit_id: 'a'.repeat(40), dirty: false };
+const revision = { repository: mode === 'old-backend' ? 'agentscumm' : 'scummweb', commit_id: 'a'.repeat(40), dirty: false };
 let ready = false, captured = false;
 const reply = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
 const text = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });

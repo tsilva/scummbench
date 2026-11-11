@@ -9,8 +9,9 @@
 # ScummBench
 
 ScummBench runs adventure-game tasks against agents and records independently
-graded results. It uses **ScummWEB** to run the game and **AgentSCUMM** for
-screenshots, input, and native evaluator telemetry. Bring your own agent through
+graded results. It uses the **ScummWEB backbone** for the game,
+screenshots, input, and native evaluator telemetry. **AgentSCUMM** consumes the
+ScummBench MCP interface. Bring your own agent through
 a small JSON-lines process interface; AgentBench is not required.
 
 The first development task asks an agent to reach the opening hotel's laundry
@@ -28,9 +29,9 @@ require additional validation. No model performance result is bundled.
 
 ## Try it
 
-Requires **Node.js 22+**, **Python 3.11+**, **uv**, a clean installed AgentSCUMM checkout, and
-a compatible ScummWEB deployment with Queen and evaluator hooks. AgentSCUMM's
-browser runtime must be installed separately. ScummBench itself has no package
+Requires **Node.js 22+**, **Python 3.11+**, **uv**, a clean installed ScummWEB checkout, and
+a compatible ScummWEB deployment with Queen and evaluator hooks. Install the
+ScummWEB checkout's locked dependencies before use. ScummBench itself has no package
 runtime dependencies and bundles no game data, saves, or model credentials.
 
 From this repository:
@@ -52,13 +53,13 @@ and chosen ScummWEB URL:
 ```sh
 mkdir -p local runs
 scummbench init-config \
-  --agentscumm /absolute/path/to/agentscumm \
+  --scummweb /absolute/path/to/scummweb \
   --base-url https://your-scummweb-host.example \
   --out local/backend.json
 scummbench doctor --backend local/backend.json
 ```
 
-`doctor` checks the MCP connection and pinned clean AgentSCUMM revision without
+`doctor` checks the MCP connection and pinned clean ScummWEB backbone revision without
 starting a game. The configuration records runtime and asset pins as unknown
 until supplied; declarations do not verify the served deployment.
 
@@ -94,6 +95,7 @@ agent; all v1 results explicitly have `official_eligible: false`.
 - [Evaluation protocol](docs/evaluation.md): tasks, accounting, outcomes, scoring,
   provenance, and requirements for an official release.
 - [Development](docs/development.md): tests, CI, assets, and extension boundaries.
+- [Live W&B reporting](docs/wandb.md): optional per-game metrics and final outcomes.
 
 Code distribution licensing has not been selected. Game assets retain their
 own terms and are not included; deployment availability is not a redistribution

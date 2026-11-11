@@ -126,7 +126,7 @@ export class McpClient {
 }
 
 export function textResult(result) {
-  if (result?.isError) throw new Error('AgentSCUMM tool failed; inspect the private runtime artifacts');
+  if (result?.isError) throw new Error('ScummWEB backbone tool failed; inspect the private runtime artifacts');
   const block = result?.content?.find(item => item.type === 'text');
   if (!block) throw new Error('Missing MCP text result');
   return JSON.parse(block.text);

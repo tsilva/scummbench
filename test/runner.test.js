@@ -7,18 +7,19 @@ import { loadTask, root, digest, visibleTask, validateDecision } from '../src/co
 import { gradeReceipt } from '../src/backend.js';
 import { runAttempt, verifyRun } from '../src/runner.js';
 import { aggregate, wilson } from '../src/aggregate.js';
+import { WandbPublisher } from '../src/wandb.js';
 
-async function attempt(t, { mode = 'success', agent = 'click', budgets = {} } = {}) {
+async function attempt(t, { mode = 'success', agent = 'click', budgets = {}, reporting } = {}) {
   const temporary = await mkdtemp(path.join(tmpdir(), 'scummbench-test-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const loaded = await loadTask(path.join(root, 'tasks/queen/hotel-laundry.v1.json'));
   Object.assign(loaded.task.budgets, { startup_ms: 5000, response_ms: 3000, wall_ms: 10000 }, budgets);
   loaded.source = Buffer.from(JSON.stringify(loaded.task)); loaded.sha256 = digest(loaded.source);
-  const backendConfig = { agentscumm_dir: path.join(root, 'test/fixtures/backend'),
-    agentscumm_revision: 'a'.repeat(40), base_url: `http://${mode}.invalid` };
+  const backendConfig = { scummweb_dir: path.join(root, 'test/fixtures/backend'),
+    scummweb_revision: 'a'.repeat(40), base_url: `http://${mode}.invalid` };
   const agentConfig = { command: process.execPath, args: [path.join(root, 'test/fixtures/agent.js'), agent], label: `fixture-${agent}` };
   const output = path.join(temporary, 'run');
-  const options = { loadedTask: loaded, backendConfig, provenance: { commit_id: 'a'.repeat(40), base_url: backendConfig.base_url }, agentConfig, output };
+  const options = { loadedTask: loaded, backendConfig, provenance: { commit_id: 'a'.repeat(40), base_url: backendConfig.base_url }, agentConfig, output, reporting };
   return { ...(await runAttempt(options)), options };
 }
 
@@ -121,4 +122,44 @@ test('aggregation retains outcome groups and prevents counting a run twice', asy
   assert.ok(summary.groups[0].wilson_95_valid_attempts[0] < 0.3);
   await assert.rejects(aggregate([run.directory, run.directory]), /Duplicate run ID/);
   assert.equal(wilson(0, 0), null);
+});
+
+test('W&B streams fixed-task counters and final grades without evaluator or player data', async t => {
+  const posts = [];
+  const reporting = details => new WandbPublisher({ entity: 'fixture', project: 'tests', api_key_placeholder: 'test_placeholder' }, {
+    ...details, flushMs: 5,
+    transport: async (endpoint, body) => {
+      posts.push({ endpoint, body });
+      return endpoint === '/graphql' ? { data: { upsertBucket: { bucket: { name: body.variables.name } } } } : {};
+    },
+  });
+  const run = await attempt(t, { reporting });
+  assert.equal(run.result.status, 'success');
+  await verifyRun(run.directory);
+  const receipt = JSON.parse(await readFile(path.join(run.directory, 'wandb.json')));
+  assert.equal(receipt.run_id, run.result.run_id);
+  assert.equal(receipt.state, 'synced');
+  const rows = posts.flatMap(post => post.body.files?.['wandb-history.jsonl']?.content.map(JSON.parse) ?? []);
+  assert.ok(rows.some(row => row.status === 'in_progress'));
+  assert.equal(rows.at(-1).status, 'success');
+  assert.equal(rows.at(-1).success, 1);
+  assert.equal(rows.at(-1)['usage/submitted_actions'], 1);
+  assert.doesNotMatch(JSON.stringify(posts), /room_id|native_receipt|screenshots|base_url|fixture\/backend|iVBOR/);
+  const config = JSON.parse(posts.find(post => post.endpoint === '/graphql').body.variables.config);
+  assert.equal(config.condition, undefined);
+  assert.equal(config.official_eligible.value, false);
+  assert.equal(posts.at(-1).body.complete, true);
+});
+
+test('W&B outage leaves authoritative grades and artifacts unchanged', async t => {
+  const reporting = details => new WandbPublisher({ entity: 'fixture', project: 'tests', api_key_placeholder: 'test_placeholder' }, {
+    ...details, transport: async () => { throw new Error('secret provider diagnostics'); },
+  });
+  const run = await attempt(t, { reporting, agent: 'finish' });
+  assert.equal(run.result.status, 'failure');
+  assert.equal(run.result.reason, 'agent_stopped');
+  await verifyRun(run.directory);
+  const receipt = await readFile(path.join(run.directory, 'wandb.json'), 'utf8');
+  assert.equal(JSON.parse(receipt).state, 'failed');
+  assert.doesNotMatch(receipt, /secret provider/);
 });

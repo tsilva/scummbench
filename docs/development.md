@@ -20,11 +20,23 @@ processes. Temporary fixture runs are created under a unique OS temporary
 directory and removed after each test. No game assets, live browser, model API,
 network access, or credentials are needed for the suite.
 
+The optional [W&B publisher](wandb.md) uses Node's built-in HTTPS proxy transport.
+Synthetic tests cover streaming before completion, payload exclusions, game
+project routing, contiguous retry offsets, backpressure, shutdown deadlines,
+independent grading during outages, and interactive sessions without inferred
+success. These fixtures do not establish live W&B authentication or ingestion.
+
 Tests cover native success after MCP closes, false completion claims, invalid
 receipts, task isolation in the visible protocol, decision/action/response/wall
 budgets, malformed output, prohibited actions, duplicate attempts, and tampered
 artifacts. CI runs these checks on Linux; local success does not establish CI
 success before publication.
+
+## Results page
+
+The dependency-free [results explorer](results-page.md) has a local preview via
+`pnpm dev -- --port auto`. Its public display export is separate from private
+run evidence and includes explicitly labelled synthetic examples for preview.
 
 ## Editable global command
 
@@ -41,30 +53,41 @@ Hatchling is a pinned build dependency, and uv enforces the seven-day release-ag
 policy. `uv.lock` records the Python project; Node dependencies remain governed by
 the separate pnpm lockfile. Keep both version declarations aligned.
 
-ScummBench launches AgentSCUMM's managed internal `src/server.js` backend for
-fixed-task runs and for the MCP gateway. The public AgentSCUMM `src/index.js`
-delegates to `scummbench mcp`; it has no direct-backend fallback. Existing MCP
-configuration can keep its launcher path. New connections expose
-`status.scummbench.mediated: true`; existing live connections are preserved until
-their sessions end. The observer remains a protocol example, not a model adapter.
+AgentSCUMM's public `src/index.js` delegates to `scummbench mcp`. ScummBench
+launches ScummWEB's `agent-backbone/src/server.js` for both interactive MCP and
+fixed-task attempts. It never loads AgentSCUMM code. The backbone uses ScummWEB's
+existing locked `playwright-core` and `zod` dependencies; ScummBench stays
+dependency-free. See [ScummWEB's backbone guide](../../scummweb/docs/agent-backbone.md).
+
+For editable sibling checkouts, the ScummWEB directory resolves automatically.
+Other layouts set `SCUMMWEB_DIR` to an absolute checkout, or use
+`scummbench mcp --scummweb /absolute/scummweb -- [backbone arguments]`.
+The `--scummweb` option belongs before `--`; AgentSCUMM forwards only backbone
+arguments after `--`. Missing ScummWEB fails closed. Existing live connections
+keep their loaded code until their sessions finish; replacement connections
+report `status.sourceRevision.repository: "scummweb"` and
+`status.scummbench.mediated: true`.
 
 ## Backend configuration
 
-`init-config` pins a clean AgentSCUMM checkout. A configuration contains:
+Schema 1 configurations pointing at AgentSCUMM are rejected. Regenerate them
+with `init-config --scummweb`; historical run artifacts remain verifiable.
+
+`init-config` pins a clean ScummWEB checkout. A configuration contains:
 
 ```json
 {
-  "schema_version": 1,
-  "agentscumm_dir": "/absolute/path/to/agentscumm",
-  "agentscumm_revision": "FULL_40_CHARACTER_COMMIT",
+  "schema_version": 2,
+  "scummweb_dir": "/absolute/path/to/scummweb",
+  "scummweb_revision": "FULL_40_CHARACTER_COMMIT",
   "base_url": "https://your-scummweb-host.example",
-  "scummweb_revision": null,
+  "runtime_revision": null,
   "asset_files": []
 }
 ```
 
 The placeholder commit must be replaced by the initializer's actual commit.
-An optional `scummweb_revision` is a declared 40-character commit; it is not
+An optional `runtime_revision` is a declared 40-character commit; it is not
 verified against the remote deployment. Optional asset declarations are objects
 with absolute `path` and SHA-256 `sha256`. The loader checks those local files;
 it does not claim that a deployment served the same bytes. No assets are uploaded
@@ -77,7 +100,7 @@ attempt's browser profile. The player cannot restart the session or load saves.
 
 ## Extending the suite
 
-Keep native maps in ScummWEB and input mechanics in AgentSCUMM. Add benchmark
+Keep native maps in ScummWEB and input mechanics in ScummWEB's agent backbone. Add benchmark
 tasks and grading policy here. Validate a new task's success rules with positive
 and negative native traces, then with a live attempt on a pinned edition. A
 successful synthetic fixture is not a successful game playthrough.

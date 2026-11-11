@@ -75,8 +75,8 @@ accidentally storing provider credentials.
 Coordinates are CSS pixels in the 651×490 cropped game screenshot, captured
 inside a 960×720 engine viewport. The runner checks the actual screenshot
 dimensions against the task before starting the agent. Batches
-contain 1–32 ordered action records and must fit AgentSCUMM's 20-second
-input-hold/wait limit. AgentSCUMM validates field types, coordinate bounds,
+contain 1–32 ordered action records and must fit the ScummWEB backbone's 20-second
+input-hold/wait limit. The ScummWEB backbone validates field types, coordinate bounds,
 allowed keys, and hold limits before delivering inputs.
 
 | Type | Fields |
@@ -91,7 +91,7 @@ allowed keys, and hold limits before delivering inputs.
 
 Save, load, pause, resume, session restart, file access, browser access, and raw
 telemetry queries are not player actions in this track. `wait_ticks` advances
-and holds native game time under AgentSCUMM semantics. The development runner
+and holds native game time under ScummWEB backbone semantics. The development runner
 does not automatically freeze time during inference, so it is not a fully
 stepped environment and latency may affect gameplay.
 

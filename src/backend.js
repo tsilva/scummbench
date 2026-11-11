@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { McpClient, textResult } from './process.js';
 import { json, requireThat, digest } from './contracts.js';
+import { resolveBackbone } from './backbone.js';
 
 export function gitRevision(directory) {
   try {
@@ -13,15 +14,15 @@ export function gitRevision(directory) {
 
 export async function loadBackend(file) {
   const config = await json(file);
-  const allowed = ['schema_version', 'agentscumm_dir', 'agentscumm_revision', 'base_url', 'scummweb_revision', 'asset_files'];
+  const allowed = ['schema_version', 'scummweb_dir', 'scummweb_revision', 'base_url', 'runtime_revision', 'asset_files'];
   requireThat(config && typeof config === 'object' && Object.keys(config).every(key => allowed.includes(key)), 'Unknown backend configuration field');
-  requireThat(config.schema_version === 1, 'Unsupported backend schema');
-  requireThat(typeof config.agentscumm_dir === 'string' && path.isAbsolute(config.agentscumm_dir), 'agentscumm_dir must be absolute');
-  config.agentscumm_dir = await realpath(config.agentscumm_dir);
-  requireThat(/^[a-f0-9]{40}$/.test(config.agentscumm_revision), 'Expected a full AgentSCUMM commit');
+  requireThat(config.schema_version === 2, 'Unsupported backend schema');
+  requireThat(typeof config.scummweb_dir === 'string' && path.isAbsolute(config.scummweb_dir), 'scummweb_dir must be absolute');
+  config.scummweb_dir = await realpath(config.scummweb_dir);
+  requireThat(/^[a-f0-9]{40}$/.test(config.scummweb_revision), 'Expected a full ScummWEB commit');
   const url = new URL(config.base_url);
   requireThat(['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash, 'Invalid base_url');
-  requireThat(config.scummweb_revision === null || /^[a-f0-9]{40}$/.test(config.scummweb_revision), 'Invalid declared ScummWEB revision');
+  requireThat(config.runtime_revision === null || /^[a-f0-9]{40}$/.test(config.runtime_revision), 'Invalid declared ScummWEB revision');
   requireThat(Array.isArray(config.asset_files), 'asset_files must be an array');
   const assets = [];
   for (const item of config.asset_files) {
@@ -31,23 +32,23 @@ export async function loadBackend(file) {
     requireThat(digest(await readFile(item.path)) === item.sha256, 'Asset checksum mismatch');
     assets.push({ sha256: item.sha256, name: path.basename(item.path) });
   }
-  const revision = gitRevision(config.agentscumm_dir);
-  requireThat(revision.commit_id === config.agentscumm_revision && revision.dirty === false, 'AgentSCUMM checkout must match the pinned clean revision');
-  requireThat((await json(path.join(config.agentscumm_dir, 'package.json'))).name === 'agentscumm', 'Not an AgentSCUMM checkout');
+  const revision = gitRevision(config.scummweb_dir);
+  requireThat(revision.commit_id === config.scummweb_revision && revision.dirty === false, 'ScummWEB checkout must match the pinned clean revision');
+  await resolveBackbone(config.scummweb_dir);
   return { config, provenance: { ...revision, base_url: config.base_url,
-    scummweb_revision_declared: config.scummweb_revision, scummweb_revision_verified: false,
+    scummweb_revision_declared: config.runtime_revision, scummweb_revision_verified: false,
     asset_files_checked_locally: assets, served_assets_verified: false } };
 }
 
-export class AgentScummBackend {
+export class ScummWebBackend {
   constructor(config, directory, task) {
     this.config = config;
     this.receiptFile = path.join(directory, 'evaluator-result.json');
-    this.client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/server.js'),
+    this.client = new McpClient(process.execPath, [path.join(config.scummweb_dir, 'agent-backbone/src/server.js'),
       '--no-viewer', '--base-url', config.base_url, '--data-dir', path.join(directory, 'runtime'),
       '--width', String(task.viewport.width), '--height', String(task.viewport.height),
       '--evaluation-log', path.join(directory, 'evaluation.jsonl'), '--result-file', this.receiptFile,
-      '--stop-condition', JSON.stringify(task.evaluator.condition)], { cwd: config.agentscumm_dir, env: { SCUMMBENCH_MANAGED: '1' } });
+      '--stop-condition', JSON.stringify(task.evaluator.condition)], { cwd: config.scummweb_dir, env: { SCUMMBENCH_MANAGED: '1' } });
   }
   async connect() {
     this.handshake = await this.client.connect();
@@ -55,7 +56,8 @@ export class AgentScummBackend {
     requireThat(['session', 'status', 'act', 'observe'].every(name => this.tools.some(tool => tool.name === name)), 'Missing required MCP tools');
     requireThat(!this.tools.some(tool => tool.name === 'telemetry'), 'Player backend must not expose telemetry tools');
     const status = textResult(await this.client.call('status'));
-    requireThat(status.sourceRevision?.commit_id === this.config.agentscumm_revision && status.sourceRevision?.dirty === false,
+    requireThat(status.sourceRevision?.repository === 'scummweb'
+      && status.sourceRevision?.commit_id === this.config.scummweb_revision && status.sourceRevision?.dirty === false,
       'MCP server revision does not match pinned clean source');
     this.revision = status.sourceRevision;
   }
@@ -98,7 +100,7 @@ export class AgentScummBackend {
 export function gradeReceipt(receipt, task, backend) {
   requireThat(receipt && receipt.success === true && receipt.event === 'success' && receipt.reason === 'stop_condition', 'No verified native success');
   requireThat(receipt.game === task.game && receipt.session_id === backend.sessionId, 'Receipt belongs to another game/session');
-  requireThat(receipt.source_revision?.commit_id === backend.config.agentscumm_revision && receipt.source_revision?.dirty === false, 'Receipt source revision mismatch');
+  requireThat(receipt.source_revision?.commit_id === backend.config.scummweb_revision && receipt.source_revision?.dirty === false, 'Receipt source revision mismatch');
   requireThat(JSON.stringify(receipt.condition) === JSON.stringify(task.evaluator.condition), 'Receipt condition mismatch');
   requireThat(task.evaluator.condition.all.every(({ variable, equals }) => receipt.variables?.[variable] === equals), 'Receipt variables do not satisfy condition');
   requireThat(Number.isFinite(receipt.variables.native_time_ms) && receipt.variables.native_time_ms >= 0, 'Missing native event time');

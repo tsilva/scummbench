@@ -11,6 +11,6 @@ async function check(directory) {
     else if (file.endsWith('.json')) JSON.parse(await readFile(file, 'utf8'));
   }
 }
-for (const directory of ['src', 'scripts', 'test', 'examples', 'schemas', 'tasks']) await check(path.join(root, directory));
+for (const directory of ['src', 'scripts', 'test', 'examples', 'schemas', 'tasks', 'web']) await check(path.join(root, directory));
 await loadTask(path.join(root, 'tasks/queen/hotel-laundry.v1.json'));
 console.log('Syntax, JSON, and task contract checks passed.');

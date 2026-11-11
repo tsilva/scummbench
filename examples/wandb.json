@@ -1,0 +1,5 @@
+{
+  "entity": "your-entity",
+  "project": "scummbench-{gameid}",
+  "api_key_placeholder": "scummbench_wandb_placeholder"
+}

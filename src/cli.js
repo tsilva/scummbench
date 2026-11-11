@@ -6,21 +6,25 @@ import { root, loadTask, json, requireThat } from './contracts.js';
 import { gitRevision, loadBackend } from './backend.js';
 import { runAttempt, verifyRun, validateAgent } from './runner.js';
 import { aggregate } from './aggregate.js';
+import { loadWandb } from './wandb.js';
+import { resolveBackbone } from './backbone.js';
 
 const taskFile = path.join(root, 'tasks/queen/hotel-laundry.v1.json');
 const help = `ScummBench development runner (Node.js 22+)
 
   scummbench tasks
-  scummbench init-config --agentscumm /absolute/agentscumm --base-url URL --out local/backend.json
+  scummbench init-config --scummweb /absolute/scummweb --base-url URL --out local/backend.json
   scummbench doctor --backend local/backend.json
   scummbench run --backend local/backend.json --agent examples/observe-agent.json --out runs/attempt-001
   scummbench verify --run runs/attempt-001
   scummbench aggregate --run runs/attempt-001 --run runs/attempt-002
-  scummbench mcp --agentscumm /absolute/agentscumm -- [backend arguments]
-  scummbench register-archive --archive PATH --agentscumm /absolute/agentscumm
+  scummbench mcp [--scummweb /absolute/scummweb] -- [backend arguments]
+  scummbench register-archive --archive PATH --source-repo /absolute/source-repo
   scummbench paths
 
-run optionally accepts --task PATH. Output directories must not already exist.
+run optionally accepts --task PATH and --wandb local/wandb.json.
+MCP accepts --wandb before its -- separator; SCUMMBENCH_WANDB_CONFIG also opts in.
+Output directories must not already exist.
 doctor verifies the MCP connection without launching a game. No model API calls
 or game assets are bundled. Run an agent inside your approved credential route.
 All v1 results are development-only, with no enforced OS/network sandbox.
@@ -34,8 +38,9 @@ async function main() {
   }
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     backend: { type: 'string' }, agent: { type: 'string' }, task: { type: 'string' }, out: { type: 'string' },
-    agentscumm: { type: 'string' }, 'base-url': { type: 'string' }, run: { type: 'string', multiple: true },
+    scummweb: { type: 'string' }, 'base-url': { type: 'string' }, run: { type: 'string', multiple: true },
     help: { type: 'boolean' }, version: { type: 'boolean' },
+    wandb: { type: 'string' },
   } });
   const [command] = positionals;
   requireThat(positionals.length <= 1, 'Unexpected positional arguments');
@@ -46,14 +51,15 @@ async function main() {
   }
   if (values.help || !command) { process.stdout.write(help); return; }
   const allowed = {
-    tasks: [], paths: [], 'init-config': ['agentscumm', 'base-url', 'out'], doctor: ['backend'],
-    run: ['backend', 'agent', 'task', 'out'], verify: ['run'], aggregate: ['run'],
+    tasks: [], paths: [], 'init-config': ['scummweb', 'base-url', 'out'], doctor: ['backend'],
+    run: ['backend', 'agent', 'task', 'out', 'wandb'], verify: ['run'], aggregate: ['run'],
   };
   requireThat(Object.hasOwn(allowed, command), 'Unknown command');
   requireThat(Object.keys(values).every(key => allowed[command].includes(key)), 'Unexpected command option');
   let result;
   if (command === 'paths') {
     result = { repository: root, benchmarks: path.join(root, 'BENCHMARKS.md'), interactive_runs: path.join(root, 'runs/interactive') };
+    result.scummweb_checkout = await resolveBackbone().then(backbone => backbone.directory, () => null);
   } else if (command === 'tasks') {
     const files = (await readdir(path.join(root, 'tasks/queen'))).filter(file => file.endsWith('.json')).sort();
     result = await Promise.all(files.map(async file => {
@@ -61,11 +67,12 @@ async function main() {
       return { id: task.id, status: task.status, objective: task.objective, task_sha256: sha256 };
     }));
   } else if (command === 'init-config') {
-    requireThat(values.agentscumm && values['base-url'] && values.out, 'agentscumm, base-url, and out are required');
-    const revision = gitRevision(path.resolve(values.agentscumm));
-    requireThat(revision.commit_id && revision.dirty === false, 'AgentSCUMM must be a clean Git checkout');
-    const config = { schema_version: 1, agentscumm_dir: path.resolve(values.agentscumm),
-      agentscumm_revision: revision.commit_id, base_url: values['base-url'], scummweb_revision: null, asset_files: [] };
+    requireThat(values.scummweb && values['base-url'] && values.out, 'scummweb, base-url, and out are required');
+    const revision = gitRevision(path.resolve(values.scummweb));
+    requireThat(revision.commit_id && revision.dirty === false, 'ScummWEB must be a clean Git checkout');
+    await resolveBackbone(path.resolve(values.scummweb));
+    const config = { schema_version: 2, scummweb_dir: path.resolve(values.scummweb),
+      scummweb_revision: revision.commit_id, base_url: values['base-url'], runtime_revision: null, asset_files: [] };
     // Validate before writing. Parent directories are operator-selected; never
     // create a credential or secret binding implicitly.
     const url = new URL(config.base_url);
@@ -79,18 +86,20 @@ async function main() {
     if (command === 'doctor') {
       // Plain MCP initialization creates no evaluation trial or game session.
       const { McpClient, textResult } = await import('./process.js');
-      const client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/server.js'), '--no-viewer'], { cwd: config.agentscumm_dir, env: { SCUMMBENCH_MANAGED: '1' } });
+      const client = new McpClient(process.execPath, [path.join(config.scummweb_dir, 'agent-backbone/src/server.js'), '--no-viewer'], { cwd: config.scummweb_dir, env: { SCUMMBENCH_MANAGED: '1' } });
       try {
         const handshake = await client.connect();
         const status = textResult(await client.call('status'));
-        requireThat(status.sourceRevision?.commit_id === config.agentscumm_revision && status.sourceRevision?.dirty === false, 'MCP source revision mismatch');
+        requireThat(status.sourceRevision?.repository === 'scummweb'
+          && status.sourceRevision?.commit_id === config.scummweb_revision && status.sourceRevision?.dirty === false, 'MCP source revision mismatch');
         result = { connection: 'verified', launches_game: false, handshake, source_revision: status.sourceRevision, provenance,
           official_eligible: false, live_game_evaluation: 'not tested by doctor' };
       } finally { await client.close(); }
     } else {
       requireThat(values.agent && values.out, 'agent and out are required');
+      const reporting = await loadWandb(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
       const attempt = await runAttempt({ loadedTask, backendConfig: config, provenance,
-        agentConfig: validateAgent(await json(values.agent)), output: values.out });
+        agentConfig: validateAgent(await json(values.agent)), output: values.out, reporting });
       result = { directory: attempt.directory, ...attempt.result };
       if (result.status !== 'success') process.exitCode = result.status === 'infrastructure_error' ? 2 : 1;
     }
@@ -101,8 +110,9 @@ async function main() {
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 }
 
-main().catch(() => {
+main().catch(error => {
   // Do not echo child errors, configuration values, URLs, or command arguments.
-  process.stderr.write('ScummBench command failed. Check the command options, clean pinned checkout, and private run artifacts. Use --help for usage.\n');
+  process.stderr.write(error.code === 'WANDB_SETUP' ? error.message + '\n'
+    : 'ScummBench command failed. Check the command options, clean pinned checkout, and private run artifacts. Use --help for usage.\n');
   process.exitCode = 2;
 });

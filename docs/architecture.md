@@ -3,40 +3,35 @@
 ScummBench is the benchmark owner. It does not implement an adventure-game
 engine, puzzle solver, or general agent framework.
 
-AgentSCUMM's public launcher now always delegates to `scummbench mcp`. The
-ScummBench gateway preserves the native tool interface, records interactive
-evidence, and reports mediation provenance through `status.scummbench`. Missing
-ScummBench blocks launch; the managed internal backend is not a public fallback.
-Fixed-task runs use that same internal mechanical backend under the runner.
+The dependency direction is **AgentSCUMM → ScummBench MCP → ScummWEB backbone**.
+AgentSCUMM supplies gameplay procedures, planning and memory. Its launcher calls
+`scummbench mcp`; ScummBench never starts or imports AgentSCUMM code.
+ScummBench's gateway records interactive evidence and mediation provenance.
+Fixed-task runs use the same ScummWEB mechanical backbone under the runner.
 
 ```mermaid
 flowchart LR
-  Runner[ScummBench runner] -->|task and screenshots| Agent[Agent process]
-  Agent -->|decisions| Runner
-  Runner -->|MCP input and observation| Controls[AgentSCUMM]
-  Controls -->|input| Engine[ScummWEB and game]
-  Engine -->|screenshots| Controls
-  Engine -->|native telemetry| Evaluator[AgentSCUMM evaluator]
-  Runner -->|task condition| Evaluator
-  Evaluator -->|private receipt| Runner
-  Runner --> Archive[Run artifacts and aggregate results]
+  Agent[AgentSCUMM or another agent] -->|MCP or player protocol| Bench[ScummBench]
+  Bench -->|controls and observation| Backbone[ScummWEB backbone]
+  Backbone -->|input| Engine[ScummWEB engine and game]
+  Engine -->|screenshots and telemetry| Backbone
+  Backbone -->|private native receipt| Bench
+  Bench --> Archive[Run artifacts and aggregate results]
 ```
 
 ## Ownership
 
 | Component | Owns |
 | --- | --- |
-| ScummWEB | Game runtime, native game maps, story-progress semantics |
-| AgentSCUMM | Mechanical MCP controls, captures, isolation of game profiles, native telemetry and condition evaluation |
-| ScummBench | Versioned tasks, player policy, budgets, orchestration, result validation, artifacts and statistics |
-| Participating agent | Model selection, planning, memory and puzzle solving |
+| ScummWEB | Game runtime, native maps, progress semantics, controls, captures, profiles, spectator and native receipts |
+| ScummBench | Tasks, player policy, budgets, MCP mediation, orchestration, grading, portable archive verification and results |
+| AgentSCUMM or another agent | Model selection, planning, memory and puzzle solving |
 
-The reference adapter launches a fresh AgentSCUMM process for each attempt with
-an exclusive profile under its run directory. It pins the source commit and
-checks the running server's reported revision. Evaluation flags are set by the
-runner before the game starts. The player receives no raw engine variables,
-evaluation condition, receipt, MCP connection, or runtime file paths through
-the player protocol.
+Each attempt launches a fresh ScummWEB backbone with an exclusive profile under
+its run directory. The adapter pins the ScummWEB checkout and validates its
+reported startup revision. Evaluation flags are set before the game starts.
+The player receives no raw engine variables, evaluation condition, receipt,
+MCP connection, or runtime file paths through the player protocol.
 
 This is data-flow separation, not an OS security boundary. A process on the same
 host can potentially inspect files, processes, network traffic, and source. Do
@@ -63,7 +58,7 @@ claim that engine initialization is deterministic.
 
 - `tasks/`: versioned task contracts; currently one Queen development task.
 - `schemas/`: machine-readable task and result contracts.
-- `src/backend.js`: AgentSCUMM MCP adapter and independent receipt validation.
+- `src/backend.js`: ScummWEB backbone adapter and independent receipt validation.
 - `src/runner.js`: agent loop, budget enforcement, lifecycle, and artifacts.
 - `src/aggregate.js`: compatible-group summaries with uncertainty estimates.
 - `examples/`: a protocol observer, without gameplay logic or model calls.

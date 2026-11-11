@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -13,19 +12,15 @@ import tempfile
 import time
 
 from .cli import runtime_root
+from . import archive_benchmarks as adapter
 
 
-def register(archive: Path, *, agentscumm: Path, source_repo: Path, store: Path,
+def register(archive: Path, *, source_repo: Path, store: Path,
              title: str | None = None) -> dict:
     archive = Path(os.path.abspath(archive))
-    source_repo, store, agentscumm = source_repo.resolve(), store.resolve(), agentscumm.resolve()
+    source_repo, store = source_repo.resolve(), store.resolve()
     if not archive.is_relative_to(source_repo / "runs") or any(part.is_symlink() for part in [archive, *archive.parents]):
         raise ValueError("Archive must be an unlinked run in its declared source checkout")
-    # Reuse the source format's maintained verifier and rendering adapter. Only
-    # ScummBench owns the registry, lock, receipts, and destination document.
-    spec = importlib.util.spec_from_file_location("scummbench_agentscumm_adapter", agentscumm / "scripts/finalize-run.py")
-    adapter = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(adapter)
     stats = adapter.EXPORT.verify_run(archive)
     adapter.require(stats["status"] in ("completed", "in_progress", "stopped", "blocked"), "Invalid archived status")
     adapter.require(stats["status"] != "completed" or stats.get("completion_note"), "Missing ending evidence")
@@ -71,14 +66,16 @@ def register(archive: Path, *, agentscumm: Path, source_repo: Path, store: Path,
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive", type=Path, required=True)
-    parser.add_argument("--agentscumm", type=Path, required=True)
+    parser.add_argument("--agentscumm", type=Path, help=argparse.SUPPRESS)  # Legacy source-repo spelling only.
     parser.add_argument("--source-repo", type=Path)
     parser.add_argument("--store", type=Path, default=runtime_root())
     parser.add_argument("--game-title")
     args = parser.parse_args(argv)
     try:
-        result = register(args.archive, agentscumm=args.agentscumm,
-                          source_repo=args.source_repo or args.agentscumm, store=args.store, title=args.game_title)
+        source_repo = args.source_repo or args.agentscumm
+        if source_repo is None:
+            raise ValueError("--source-repo is required")
+        result = register(args.archive, source_repo=source_repo, store=args.store, title=args.game_title)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, f"ScummBench registration failed: {error}\n")
     print(json.dumps(result))

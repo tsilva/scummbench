@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 import { LineProcess, ProtocolError, TimeoutError } from './process.js';
 import { digest, visibleTask, validateDecision, requireThat, root, json, validate, loadTask } from './contracts.js';
-import { AgentScummBackend, gradeReceipt, gitRevision } from './backend.js';
+import { ScummWebBackend, gradeReceipt, gitRevision } from './backend.js';
 
 class Outcome extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
@@ -35,8 +35,8 @@ export async function archiveContent(content, directory) {
   return archived;
 }
 
-export async function runAttempt({ loadedTask, backendConfig, provenance, agentConfig, output,
-  createBackend = (config, directory, task) => new AgentScummBackend(config, directory, task) }) {
+export async function runAttempt({ loadedTask, backendConfig, provenance, agentConfig, output, reporting,
+  createBackend = (config, directory, task) => new ScummWebBackend(config, directory, task) }) {
   const { task, sha256: taskHash } = loadedTask;
   validateAgent(agentConfig);
   const directory = path.resolve(output);
@@ -54,10 +54,18 @@ export async function runAttempt({ loadedTask, backendConfig, provenance, agentC
   const record = async event => {
     if (streamError) throw streamError;
     if (!stream.write(JSON.stringify({ timestamp: new Date().toISOString(), ...event }) + '\n')) await once(stream, 'drain');
+    if (event.type !== 'result') await publisher?.log({ elapsed_ms: performance.now() - started, usage });
   };
-  const startedAt = new Date().toISOString(), started = performance.now();
+  const startedAt = new Date().toISOString(), started = performance.now(), runId = randomUUID();
   const usage = { decisions: 0, submitted_actions: 0, action_sequences: 0, observations: 0,
     requested_wait_ticks: 0, requested_wait_ms: 0 };
+  const publisher = reporting?.({ directory, runId });
+  const sourceRevision = publisher ? gitRevision(root) : undefined;
+  await publisher?.start({ kind: 'fixed_task', suite: task.suite, task_id: task.id, task_sha256: taskHash,
+    game: task.game, track: task.track, category: task.category, agent_label: agentConfig.label,
+    agent_config_sha256: digest(JSON.stringify(agentConfig)), scummbench_commit: sourceRevision?.commit_id,
+    scummbench_dirty: sourceRevision?.dirty, backend_commit: provenance.commit_id, backend_dirty: false });
+  await publisher?.log({ elapsed_ms: 0, usage, status: 'in_progress' });
   let backend, player, result, poll, deadlineTimer, startupTimer, playPromise, deadlineAt = Infinity;
   let finishing = false, active = false, polling = false;
   let settleTerminal, rejectTerminal;
@@ -178,7 +186,7 @@ export async function runAttempt({ loadedTask, backendConfig, provenance, agentC
     }
     await playPromise?.catch(() => {});
   }
-  const manifest = { schema_version: 1, run_id: randomUUID(), suite: task.suite, task_id: task.id,
+  const manifest = { schema_version: 1, run_id: runId, suite: task.suite, task_id: task.id,
     task_sha256: taskHash, game: task.game, track: task.track, category: task.category, session_id: backend?.sessionId ?? null,
     official_eligible: false, eligibility_reasons: ['Development suite', 'Agent has no enforced OS/network sandbox',
       'Served runtime/assets and reset determinism are not verified'],
@@ -191,6 +199,9 @@ export async function runAttempt({ loadedTask, backendConfig, provenance, agentC
   await record({ type: 'result', result: manifest });
   await new Promise((resolve, reject) => { stream.once('error', reject); stream.end(resolve); });
   await write('result.json', manifest);
+  // Network draining happens after the authoritative result and measured run
+  // duration are fixed. Publication failure cannot change the grade.
+  await publisher?.finish({ elapsed_ms: manifest.elapsed_ms, usage, status: manifest.status, reason: manifest.reason });
   return { directory, result: manifest };
 }
 
@@ -221,7 +232,7 @@ export async function verifyRun(directory) {
     requireThat(JSON.stringify(receipt) === JSON.stringify(manifest.native_receipt), 'Native receipt mismatch');
     requireThat(events.some(event => event.type === 'session' && event.session_id === manifest.session_id), 'Missing independent session record');
     requireThat(events.some(event => event.type === 'backend' && event.source_revision?.commit_id === manifest.backend.commit_id && event.source_revision?.dirty === false), 'Missing backend revision record');
-    gradeReceipt(receipt, task, { sessionId: manifest.session_id, config: { agentscumm_revision: manifest.backend.commit_id } });
+    gradeReceipt(receipt, task, { sessionId: manifest.session_id, config: { scummweb_revision: manifest.backend.commit_id } });
     requireThat(Date.parse(receipt.detected_at) >= Date.parse(manifest.started_at)
       && Date.parse(receipt.detected_at) <= Date.parse(manifest.started_at) + task.budgets.wall_ms, 'Receipt outside wall budget');
     const nativeEvents = (await readFile(path.join(directory, 'evaluation.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);

@@ -3,10 +3,10 @@
 ## Task
 
 `queen.hotel-laundry.v1` starts Flight of the Amazon Queen in a fresh profile
-using AgentSCUMM's catalog launch, including its existing skip-intro behavior.
+using ScummWEB's backbone catalog launch, including its existing skip-intro behavior.
 It asks the player to reach the opening hotel's laundry room downstairs. The
 native success condition requires Queen engine identity, room 71, and room-ready
-state. The source of that condition is AgentSCUMM's maintained evaluator example;
+state. The condition was originally derived from AgentSCUMM's evaluator example;
 this repository has not independently validated every game edition.
 
 Room-ready means a room update without a pending transition/cutaway. It does not
@@ -122,11 +122,10 @@ explicit contamination limitation even when evaluation tasks are held out.
 ## Registered playthroughs
 
 AgentSCUMM's finalizer exports and verifies its conversation archive, then calls
-`scummbench register-archive --archive PATH --agentscumm CHECKOUT`. ScummBench
+`scummbench register-archive --archive PATH --source-repo CHECKOUT`. ScummBench
 re-verifies the source archive, owns the registration lock and private receipts,
-and updates its own `BENCHMARKS.md` idempotently by trajectory checksum. The
-source-format renderer remains an AgentSCUMM compatibility adapter; it does not
-write the destination. Missing ScummBench fails without a local registration
+and updates its own `BENCHMARKS.md` idempotently by trajectory checksum. ScummBench owns the portable verifier and renderer and never imports an agent
+checkout during registration. Missing ScummBench fails without a local registration
 fallback. Archives and historical AgentSCUMM results are not migrated.
 
 Registered interactive playthroughs retain declared assistance and are always

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <meta name="description" content="Explore adventure-game agent progress and actions within versioned ScummBench benchmarks.">
+  <title>Results · ScummBench</title>
+  <link rel="icon" href="./favicon.png" type="image/png">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to results</a>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="ScummBench results"><span>Scumm</span>Bench</a>
+    <button class="text-button about-button" id="about-button">About</button>
+  </header>
+  <main id="main">
+    <section class="selection" aria-label="Results selection">
+      <div class="game-control">
+        <label for="game" class="visually-hidden">Game</label>
+        <select id="game" aria-describedby="context"></select>
+        <p id="context">Loading results…</p>
+      </div>
+      <div class="version-control">
+        <label for="benchmark" class="visually-hidden">Benchmark version</label>
+        <select id="benchmark"></select>
+        <button id="data-source" class="text-button data-source" title="Change data source">Recorded results</button>
+      </div>
+    </section>
+    <section id="results" aria-labelledby="chart-title" aria-busy="true">
+      <h1 id="chart-title">Progress vs actions</h1>
+      <p id="announcement" class="visually-hidden" role="status" aria-live="polite"></p>
+      <div id="chart-wrap" class="chart-wrap" hidden>
+        <canvas id="chart" role="img" aria-label="Stepped game progress against submitted actions. Use the dated run buttons to inspect each run."></canvas>
+        <div id="run-labels" class="run-labels" aria-label="Runs in this benchmark version"></div>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <div id="empty" class="empty-state" hidden>
+        <h2 id="empty-title">No results yet</h2>
+        <p id="empty-description">Recorded runs will appear here when they include a benchmark version and verified progress.</p>
+        <button id="sample-button" class="primary-button">Explore sample runs</button>
+      </div>
+      <details id="accessible-data" class="accessible-data" hidden>
+        <summary>View chart data</summary>
+        <div class="table-scroll"><table><caption>Verified progress milestones, separated by run</caption><thead><tr><th>Run</th><th>Date</th><th>Actions</th><th>Game progress</th></tr></thead><tbody id="data-rows"></tbody></table></div>
+      </details>
+    </section>
+  </main>
+  <dialog id="run-dialog" aria-labelledby="run-title">
+    <div class="dialog-heading"><h2 id="run-title">Run details</h2><button class="text-button" data-close>Close</button></div>
+    <p id="run-subtitle" class="muted"></p>
+    <dl id="run-facts"></dl>
+    <details><summary>Verified milestones</summary><div class="table-scroll"><table><thead><tr><th>Milestone</th><th>Actions</th><th>Progress</th></tr></thead><tbody id="run-points"></tbody></table></div></details>
+  </dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title">
+    <div class="dialog-heading"><h2 id="about-title">About these results</h2><button class="text-button" data-close>Close</button></div>
+    <p>Each line is one run. A step marks the action count at which a milestone was first verified. Reaching 100% farther left means fewer actions to finish.</p>
+    <p>Dates identify newer and older runs. The horizontal axis measures actions, not calendar time. Individual runs show examples, not a statistical claim of improvement.</p>
+    <p>Only runs from the selected game and benchmark version appear together. Each version fixes the starting conditions, progress rubric, completion rule and action definition.</p>
+    <p>Actions count submitted records under that version’s rules. Batches are charged at submission; milestone locations do not imply exact low-level input timing.</p>
+    <p>Recorded results are a curated display export, not independent attestation. Sample data is entirely illustrative. Current ScummBench runs are development evidence.</p>
+    <button id="recorded-button" class="primary-button">View recorded results</button>
+  </dialog>
+  <noscript>This results explorer needs JavaScript to draw milestone trajectories and switch benchmark versions.</noscript>
+</body>
+</html>
