@@ -1,0 +1,13 @@
+/runs/
+/local/
+/.internal/
+/INBOX.md
+/node_modules/
+/.venv/
+/dist/
+__pycache__/
+*.pyc
+*.egg-info/
+.DS_Store
+.env
+.env.*

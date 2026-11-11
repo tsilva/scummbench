@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "queen.hotel-laundry.v1",
+  "suite": "queen-development-v1",
+  "status": "development",
+  "game": "flight-of-the-amazon-queen",
+  "category": "short-task",
+  "objective": "Reach the laundry room downstairs in the opening hotel in Flight of the Amazon Queen.",
+  "start": { "kind": "fresh_boot", "skip_intro": true },
+  "track": "closed-book",
+  "viewport": { "width": 960, "height": 720 },
+  "observation": { "width": 651, "height": 490 },
+  "actions": ["click", "move", "key", "drag", "wait", "wait_ticks", "screenshot"],
+  "budgets": { "decisions": 600, "primitive_actions": 3000, "wall_ms": 1800000, "startup_ms": 120000, "response_ms": 120000 },
+  "evaluator": {
+    "kind": "agentscumm-stop-condition-v1",
+    "condition": { "all": [
+      { "variable": "engine_id", "equals": "queen" },
+      { "variable": "room_id", "equals": 71 },
+      { "variable": "room_ready", "equals": true }
+    ] },
+    "provenance": "AgentSCUMM docs/usage.md: Evaluator telemetry and stop conditions. Applies to the supported Queen engine; edition and assets must be recorded per attempt."
+  }
+}

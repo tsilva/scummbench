@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScummBench task v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "id", "suite", "status", "game", "category", "objective", "start", "track", "viewport", "observation", "actions", "budgets", "evaluator"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9.-]+$" },
+    "suite": { "type": "string", "minLength": 1 },
+    "status": { "const": "development" },
+    "game": { "const": "flight-of-the-amazon-queen" },
+    "category": { "const": "short-task" },
+    "objective": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "start": { "type": "object", "additionalProperties": false, "required": ["kind", "skip_intro"], "properties": { "kind": { "const": "fresh_boot" }, "skip_intro": { "const": true } } },
+    "track": { "const": "closed-book" },
+    "viewport": { "type": "object", "additionalProperties": false, "required": ["width", "height"], "properties": { "width": { "const": 960 }, "height": { "const": 720 } } },
+    "observation": { "type": "object", "additionalProperties": false, "required": ["width", "height"], "properties": { "width": { "const": 651 }, "height": { "const": 490 } } },
+    "actions": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["click", "move", "key", "drag", "wait", "wait_ticks", "screenshot"] } },
+    "budgets": { "type": "object", "additionalProperties": false, "required": ["decisions", "primitive_actions", "wall_ms", "startup_ms", "response_ms"], "properties": {
+      "decisions": { "type": "integer", "minimum": 1, "maximum": 100000 },
+      "primitive_actions": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+      "wall_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+      "startup_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+      "response_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
+    } },
+    "evaluator": { "type": "object", "additionalProperties": false, "required": ["kind", "condition", "provenance"], "properties": {
+      "kind": { "const": "agentscumm-stop-condition-v1" },
+      "provenance": { "type": "string", "minLength": 1 },
+      "condition": { "type": "object", "additionalProperties": false, "required": ["all"], "properties": {
+        "all": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {
+          "type": "object", "additionalProperties": false, "required": ["variable", "equals"], "properties": {
+            "variable": { "enum": ["engine_id", "room_id", "room_ready"] },
+            "equals": { "type": ["string", "integer", "boolean"] }
+          }
+        } }
+      } }
+    } }
+  }
+}

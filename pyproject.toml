@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scummbench"
+version = "0.1.0.dev0"
+description = "Adventure-game agent benchmark with an editable Node.js CLI launcher"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+scummbench = "scummbench.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/scummbench"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src" = "scummbench/_runtime/src"
+"tasks" = "scummbench/_runtime/tasks"
+"schemas" = "scummbench/_runtime/schemas"
+"package.json" = "scummbench/_runtime/package.json"
+
+[tool.hatch.build.targets.sdist]
+include = ["/python", "/src", "/tasks", "/schemas", "/package.json", "/pyproject.toml", "/uv.lock", "/README.md"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["python"]
+
+[tool.uv]
+exclude-newer = "7 days"
+constraint-dependencies = ["mistralai!=2.4.6", "guardrails-ai!=0.10.1"]

@@ -1,0 +1,5 @@
+{
+  "command": "node",
+  "args": ["examples/observe-agent.js"],
+  "label": "protocol-observer-v1"
+}
