@@ -15,6 +15,11 @@ try {
     try { await readFile(path.join(root, '.internal/evidence/automatic-results/deny.txt')); throw new Error('Sandbox read allowed'); }
     catch (error) { if (!['EACCES', 'EPERM'].includes(error.code)) throw error; }
     await writeFile(path.join(directory, 'fake-proof.json'), JSON.stringify({ fake_rejected: true, unlisted_host_blocked: true, private_read_blocked: true }) + '\n', { mode: 0o600 });
+  } else if (process.argv.includes('--check-auth')) {
+    send = blobTransport();
+    const result = await send('https://vercel.com/api/blob?limit=1', { authenticated: true });
+    if (result.status !== 200 || !Array.isArray(result.value?.blobs)) throw new Error('Store identity check failed');
+    await writeFile(path.join(directory, 'identity-proof.json'), JSON.stringify({ success: true, read_only: true }) + '\n', { mode: 0o600 });
   } else {
   const config = JSON.parse(await readFile(path.join(root, 'local/results-publication.json'), 'utf8'));
   const incoming = JSON.parse(await readFile(path.join(directory, 'outbox.json'), 'utf8'));
