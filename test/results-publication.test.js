@@ -29,7 +29,8 @@ test('concurrent publication re-reads current results and uses the current ETag'
   other.games[0].benchmarks = [other.games[0].benchmarks[1]];
   let reads = 0, writes = 0;
   const result = await syncResults(data, { url, send: async (endpoint, options) => {
-    if (!options.authenticated) { reads++; return { status: 200, etag: 'version-' + reads, value: reads === 1 ? empty : other }; }
+    if (!options.authenticated) { reads++; return { status: 200, etag: 'W/"version-' + reads + '"', value: reads === 1 ? empty : other }; }
+    if (options.method !== 'PUT') return { status: 200, value: { url, etag: 'version-' + reads } };
     writes++; assert.equal(options.headers['x-if-match'], 'version-' + writes);
     const body = JSON.parse(options.body);
     assert.equal(body.publication.mode, 'automatic');
@@ -71,4 +72,18 @@ test('public reader serves dynamic data, preserves unavailable metrics, and repo
   const down = response(); await resultsHandler({ fetchResults: async () => ({ ok: false, status: 503 }) })({ method: 'GET' }, down);
   assert.equal(down.statusCode, 503);
   const post = response(); await handler({ method: 'POST' }, post); assert.equal(post.statusCode, 405);
+});
+
+
+test('stale CDN bytes or missing authenticated metadata never overwrite current results', async () => {
+  for (const metadata of [{ status: 503 }, { status: 200, value: { url, etag: 'current' } },
+      { status: 200, value: { url, etag: 'W/"old"' } }]) {
+    let writes = 0;
+    await assert.rejects(syncResults(fixture(), { url, send: async (_, options) => {
+      if (!options.authenticated) return { status: 200, etag: 'W/"old"', value: empty };
+      if (options.method !== 'PUT') return metadata;
+      writes++; return { status: 200, value: { url } };
+    } }));
+    assert.equal(writes, 0);
+  }
 });

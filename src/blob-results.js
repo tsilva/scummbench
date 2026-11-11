@@ -27,6 +27,7 @@ export function blobTransport(env = process.env) {
   send.close = () => agent.destroy(); return send;
 }
 const empty = { schema_version: 1, games: [] };
+const comparableTag = value => typeof value === 'string' ? value.replace(/^W\//, '').replace(/^"|"$/g, '') : null;
 export async function syncResults(incoming, { url, send, now = () => new Date().toISOString() }) {
   validateResults(incoming);
   const target = new URL(url);
@@ -36,6 +37,16 @@ export async function syncResults(incoming, { url, send, now = () => new Date().
     const previous = await send(url + `?refresh=${Date.now()}-${attempt}`, { headers: { 'Cache-Control': 'no-cache' } });
     if (previous.status !== 200 && previous.status !== 404) throw new Error('Public results unavailable');
     if (previous.status === 200 && !previous.etag) throw new Error('Missing results concurrency token');
+    let etag;
+    if (previous.status === 200) {
+      // The CDN returns weak tags. Blob's authenticated metadata API supplies
+      // the storage tag required for ifMatch. Verify that it describes the
+      // bytes we read before merging, so a stale CDN response cannot lose runs.
+      const metadata = await send(BLOB_API + '?url=' + encodeURIComponent(url), { authenticated: true });
+      etag = metadata.value?.etag;
+      if (metadata.status !== 200 || metadata.value?.url !== url || !etag || etag.startsWith('W/')) throw new Error('Missing storage concurrency token');
+      if (comparableTag(previous.etag) !== comparableTag(etag)) continue;
+    }
     const data = mergeResults(previous.status === 404 ? empty : previous.value, incoming);
     const revision = createHash('sha256').update(JSON.stringify(data)).digest('hex');
     if (previous.value?.revision === revision) return { revision, unchanged: true };
@@ -43,7 +54,7 @@ export async function syncResults(incoming, { url, send, now = () => new Date().
     const result = await send(BLOB_API + '/?pathname=results%2Fcurrent.json', { method: 'PUT', authenticated: true,
       headers: { 'Content-Type': 'application/json', 'x-content-type': 'application/json', 'x-add-random-suffix': '0',
         'x-vercel-blob-access': 'public', 'x-cache-control-max-age': '60',
-        'x-allow-overwrite': previous.status === 200 ? '1' : '0', ...(previous.etag ? { 'x-if-match': previous.etag } : {}) },
+        'x-allow-overwrite': previous.status === 200 ? '1' : '0', ...(etag ? { 'x-if-match': etag } : {}) },
       body: JSON.stringify(payload) });
     if (result.status === 412 || result.value?.error?.code === 'precondition_failed' || result.value?.error?.code === 'blob_already_exists') continue;
     if (result.status < 200 || result.status >= 300 || result.value?.url !== url) throw new Error('Results upload not confirmed');
