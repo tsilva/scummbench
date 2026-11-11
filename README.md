@@ -15,6 +15,10 @@ The first development task asks an agent to reach the opening hotel's laundry
 room in **Flight of the Amazon Queen**. Success requires the native engine to
 report the target room ready. An agent's completion claim cannot pass the task.
 
+AgentSCUMM's normal MCP launcher also routes through ScummBench. Interactive play
+keeps its existing controls and records evidence separately from fixed-task
+attempts. [New playthrough results](BENCHMARKS.md) are registered here.
+
 **Development status:** the runner and synthetic evaluation tests work locally.
 This is not yet a frozen benchmark or an official leaderboard. Game completion,
 served asset provenance, deterministic resets, and enforced agent isolation

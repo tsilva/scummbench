@@ -21,6 +21,11 @@ def runtime_root() -> Path:
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["register-archive"]:
+        sys.dont_write_bytecode = True
+        from .registry import main as register_main
+        register_main(sys.argv[2:])
+        return
     node = shutil.which("node")
     if node is None:
         print("ScummBench requires Node.js 22+ on PATH.", file=sys.stderr)

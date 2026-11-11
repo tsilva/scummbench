@@ -41,10 +41,12 @@ Hatchling is a pinned build dependency, and uv enforces the seven-day release-ag
 policy. `uv.lock` records the Python project; Node dependencies remain governed by
 the separate pnpm lockfile. Keep both version declarations aligned.
 
-ScummBench launches AgentSCUMM for its own `run` command. The ordinary
-`agentscumm_play-game` skill is a separate workflow and has not been rerouted
-through this runner. A Codex gameplay bridge would be an additional integration;
-the observer example is not a model-powered adapter.
+ScummBench launches AgentSCUMM's managed internal `src/server.js` backend for
+fixed-task runs and for the MCP gateway. The public AgentSCUMM `src/index.js`
+delegates to `scummbench mcp`; it has no direct-backend fallback. Existing MCP
+configuration can keep its launcher path. New connections expose
+`status.scummbench.mediated: true`; existing live connections are preserved until
+their sessions end. The observer remains a protocol example, not a model adapter.
 
 ## Backend configuration
 

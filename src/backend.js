@@ -43,11 +43,11 @@ export class AgentScummBackend {
   constructor(config, directory, task) {
     this.config = config;
     this.receiptFile = path.join(directory, 'evaluator-result.json');
-    this.client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/index.js'),
+    this.client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/server.js'),
       '--no-viewer', '--base-url', config.base_url, '--data-dir', path.join(directory, 'runtime'),
       '--width', String(task.viewport.width), '--height', String(task.viewport.height),
       '--evaluation-log', path.join(directory, 'evaluation.jsonl'), '--result-file', this.receiptFile,
-      '--stop-condition', JSON.stringify(task.evaluator.condition)], { cwd: config.agentscumm_dir });
+      '--stop-condition', JSON.stringify(task.evaluator.condition)], { cwd: config.agentscumm_dir, env: { SCUMMBENCH_MANAGED: '1' } });
   }
   async connect() {
     this.handshake = await this.client.connect();

@@ -118,3 +118,25 @@ Keep development and held-out evaluation data separate. Existing walkthrough-
 assisted playthroughs can inform development and engine validation, but should
 not be presented as closed-book benchmark results. Familiar games require an
 explicit contamination limitation even when evaluation tasks are held out.
+
+## Registered playthroughs
+
+AgentSCUMM's finalizer exports and verifies its conversation archive, then calls
+`scummbench register-archive --archive PATH --agentscumm CHECKOUT`. ScummBench
+re-verifies the source archive, owns the registration lock and private receipts,
+and updates its own `BENCHMARKS.md` idempotently by trajectory checksum. The
+source-format renderer remains an AgentSCUMM compatibility adapter; it does not
+write the destination. Missing ScummBench fails without a local registration
+fallback. Archives and historical AgentSCUMM results are not migrated.
+
+Registered interactive playthroughs retain declared assistance and are always
+development evidence. Registration neither grants official eligibility nor
+publishes a Git commit. Known token costs retain their archived rates and
+processing-tier assumptions; unknown costs stay unknown. Source transcripts and
+private paths stay out of the public result table.
+
+The gateway records MCP observations and inputs under `runs/interactive/` by
+default. `SCUMMBENCH_RUNS_DIR` selects an alternative private evidence directory,
+including test-owned temporary storage. These journals are not conversation
+archives and never infer a game victory from a session closing. The normal play
+skill still requires ending evidence and deferred archive verification.

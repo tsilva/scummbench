@@ -5,6 +5,12 @@ portable artifacts, and aggregate scoring. ScummWEB owns the engine and native
 game maps. AgentSCUMM owns game controls, screenshots, and mechanical telemetry.
 Agents own puzzle solving and memory. AgentBench is not a dependency.
 
+All new AgentSCUMM gameplay must use ScummBench. Its public launcher delegates
+to the MCP gateway; managed backend access is internal. Require mediation
+provenance for ordinary gameplay and never add a direct-control fallback.
+ScummBench owns future benchmark registration and BENCHMARKS.md. Preserve
+historical AgentSCUMM rows and source conversation archives in place.
+
 Read SPECS.md and the relevant docs before substantive changes. Work on the
 current branch. Preserve the dependency-free Node.js implementation unless a
 dependency is justified and approved under the user's supply-chain rules.

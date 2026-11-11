@@ -11,9 +11,9 @@ export function cleanEnv() {
 // Each child owns a process group on Unix. Cleanup is scoped to that group,
 // including browser/model-runner descendants; unrelated instances are untouched.
 export class LineProcess {
-  constructor(command, args = [], { cwd, maxBytes = 24 * 1024 * 1024, maxQueue = 256 } = {}) {
+  constructor(command, args = [], { cwd, env = {}, maxBytes = 24 * 1024 * 1024, maxQueue = 256 } = {}) {
     this.buffer = ''; this.lines = []; this.waiters = []; this.maxBytes = maxBytes; this.maxQueue = maxQueue;
-    this.child = spawn(command, args, { cwd, env: cleanEnv(), detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
+    this.child = spawn(command, args, { cwd, env: { ...cleanEnv(), ...env }, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
     this.closed = new Promise(resolve => { this.resolveClosed = resolve; });
     this.child.stderr.resume(); // Never persist potentially credential-bearing diagnostics.
     this.child.stdout.setEncoding('utf8');
@@ -51,7 +51,7 @@ export class LineProcess {
     if (this.error) return Promise.reject(this.error);
     return new Promise((resolve, reject) => {
       const waiter = { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } };
-      const timer = setTimeout(() => {
+      const timer = timeoutMs === null ? undefined : setTimeout(() => {
         this.waiters = this.waiters.filter(item => item !== waiter);
         reject(new TimeoutError('Process response timed out'));
       }, timeoutMs);
@@ -78,21 +78,43 @@ export class LineProcess {
 // Minimal MCP stdio client: newline-delimited JSON-RPC, no HTTP transport or
 // server-initiated sampling. Methods are serialized by the benchmark runner.
 export class McpClient {
-  constructor(command, args, options) { this.process = new LineProcess(command, args, options); this.id = 0; }
-  async request(method, params = {}, timeoutMs = 60000) {
-    const id = ++this.id;
-    this.process.send({ jsonrpc: '2.0', id, method, params });
+  constructor(command, args, options) {
+    this.process = new LineProcess(command, args, options); this.id = 0; this.pending = new Map();
+    this.reading = this.read().catch(error => {
+      this.failure = error;
+      for (const pending of this.pending.values()) pending.reject(error);
+      this.pending.clear();
+    });
+  }
+  async read() {
     for (;;) {
-      const message = JSON.parse(await this.process.line(timeoutMs));
+      const message = JSON.parse(await this.process.line(null));
       if (message.method) {
         if (message.id !== undefined) this.process.send({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Server requests are not supported' } });
         continue;
       }
-      if (message.id !== id) throw new ProtocolError('Unexpected MCP response ID');
-      if (message.error) throw new Error(`MCP ${method} failed`);
-      return message.result;
+      const pending = this.pending.get(message.id);
+      if (!pending) throw new ProtocolError('Unexpected MCP response ID');
+      this.pending.delete(message.id);
+      if (message.error) pending.reject(new Error('MCP request failed'));
+      else pending.resolve(message.result);
     }
   }
+  request(method, params = {}, timeoutMs = 60000, onRequestId) {
+    if (this.failure) return Promise.reject(this.failure);
+    const id = ++this.id;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new TimeoutError('MCP request timed out'));
+      }, timeoutMs);
+      const finish = callback => value => { clearTimeout(timer); callback(value); };
+      this.pending.set(id, { resolve: finish(resolve), reject: finish(reject) });
+      try { this.process.send({ jsonrpc: '2.0', id, method, params }); onRequestId?.(id); }
+      catch (error) { this.pending.delete(id); clearTimeout(timer); reject(error); }
+    });
+  }
+  cancel(id) { this.process.send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: id, reason: 'Cancelled by upstream client' } }); }
   async connect() {
     const result = await this.request('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'scummbench', version: '0.1.0-dev.0' } });
     if (!['2024-11-05', '2025-03-26', '2025-06-18'].includes(result.protocolVersion)) throw new Error('Unsupported MCP protocol version');

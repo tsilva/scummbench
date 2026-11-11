@@ -3,6 +3,12 @@
 ScummBench is the benchmark owner. It does not implement an adventure-game
 engine, puzzle solver, or general agent framework.
 
+AgentSCUMM's public launcher now always delegates to `scummbench mcp`. The
+ScummBench gateway preserves the native tool interface, records interactive
+evidence, and reports mediation provenance through `status.scummbench`. Missing
+ScummBench blocks launch; the managed internal backend is not a public fallback.
+Fixed-task runs use that same internal mechanical backend under the runner.
+
 ```mermaid
 flowchart LR
   Runner[ScummBench runner] -->|task and screenshots| Agent[Agent process]

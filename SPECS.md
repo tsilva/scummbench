@@ -4,6 +4,12 @@ ScummBench evaluates agents playing adventure games through AgentSCUMM and
 ScummWEB. The first game is Flight of the Amazon Queen. AgentBench is excluded.
 Any agent harness may participate through the documented interface.
 
+All new AgentSCUMM gameplay uses ScummBench exclusively. The public AgentSCUMM
+launcher delegates to the ScummBench MCP gateway, with no direct backend fallback.
+Existing live sessions are preserved; new connections must expose mediation
+provenance. ScummBench owns future benchmark registration and its canonical
+BENCHMARKS.md. Existing AgentSCUMM records and conversation archives stay intact.
+
 The global `scummbench` command supports `uv tool install --editable` from this
 checkout. It runs the live repository implementation, so subsequent source and
 task edits take effect on the next invocation without reinstalling. Already

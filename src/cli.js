@@ -16,6 +16,9 @@ const help = `ScummBench development runner (Node.js 22+)
   scummbench run --backend local/backend.json --agent examples/observe-agent.json --out runs/attempt-001
   scummbench verify --run runs/attempt-001
   scummbench aggregate --run runs/attempt-001 --run runs/attempt-002
+  scummbench mcp --agentscumm /absolute/agentscumm -- [backend arguments]
+  scummbench register-archive --archive PATH --agentscumm /absolute/agentscumm
+  scummbench paths
 
 run optionally accepts --task PATH. Output directories must not already exist.
 doctor verifies the MCP connection without launching a game. No model API calls
@@ -24,6 +27,11 @@ All v1 results are development-only, with no enforced OS/network sandbox.
 `;
 
 async function main() {
+  if (process.argv[2] === 'mcp') {
+    const { serve } = await import('./gateway.js');
+    await serve(process.argv.slice(3));
+    return;
+  }
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     backend: { type: 'string' }, agent: { type: 'string' }, task: { type: 'string' }, out: { type: 'string' },
     agentscumm: { type: 'string' }, 'base-url': { type: 'string' }, run: { type: 'string', multiple: true },
@@ -38,13 +46,15 @@ async function main() {
   }
   if (values.help || !command) { process.stdout.write(help); return; }
   const allowed = {
-    tasks: [], 'init-config': ['agentscumm', 'base-url', 'out'], doctor: ['backend'],
+    tasks: [], paths: [], 'init-config': ['agentscumm', 'base-url', 'out'], doctor: ['backend'],
     run: ['backend', 'agent', 'task', 'out'], verify: ['run'], aggregate: ['run'],
   };
   requireThat(Object.hasOwn(allowed, command), 'Unknown command');
   requireThat(Object.keys(values).every(key => allowed[command].includes(key)), 'Unexpected command option');
   let result;
-  if (command === 'tasks') {
+  if (command === 'paths') {
+    result = { repository: root, benchmarks: path.join(root, 'BENCHMARKS.md'), interactive_runs: path.join(root, 'runs/interactive') };
+  } else if (command === 'tasks') {
     const files = (await readdir(path.join(root, 'tasks/queen'))).filter(file => file.endsWith('.json')).sort();
     result = await Promise.all(files.map(async file => {
       const { task, sha256 } = await loadTask(path.join(root, 'tasks/queen', file));
@@ -69,7 +79,7 @@ async function main() {
     if (command === 'doctor') {
       // Plain MCP initialization creates no evaluation trial or game session.
       const { McpClient, textResult } = await import('./process.js');
-      const client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/index.js'), '--no-viewer'], { cwd: config.agentscumm_dir });
+      const client = new McpClient(process.execPath, [path.join(config.agentscumm_dir, 'src/server.js'), '--no-viewer'], { cwd: config.agentscumm_dir, env: { SCUMMBENCH_MANAGED: '1' } });
       try {
         const handshake = await client.connect();
         const status = textResult(await client.call('status'));
