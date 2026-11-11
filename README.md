@@ -20,7 +20,8 @@ report the target room ready. An agent's completion claim cannot pass the task.
 
 AgentSCUMM's normal MCP launcher also routes through ScummBench. Interactive play
 keeps its existing controls and records evidence separately from fixed-task
-attempts. [New playthrough results](BENCHMARKS.md) are registered here.
+attempts. [Explore game results](https://scummbench.tsilva.eu), or read the
+[registered playthrough records](BENCHMARKS.md).
 
 **Development status:** the runner and synthetic evaluation tests work locally.
 This is not yet a frozen benchmark or an official leaderboard. Game completion,

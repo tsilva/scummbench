@@ -172,7 +172,7 @@ export function createResultsFeed({ runsDirectory, registryDirectory = path.join
       let version = game.benchmarks.find(v => v.id === item.version.id);
       if (!version) { version = { ...item.version, runs: [] }; game.benchmarks.push(version); }
       version.runs.push(item.run);
-      if (item.run.evidence_status === 'actions_only') diagnostics.counts_only++;
+      if (!item.run.points.length) diagnostics.counts_only++;
       else diagnostics.plotted++;
     };
     const unavailable = error => {
@@ -203,7 +203,7 @@ export function createResultsFeed({ runsDirectory, registryDirectory = path.join
           id: raw.version?.id, label: raw.version?.label, context: raw.version?.context, contract: Object.fromEntries(
             ['game_edition', 'start', 'track', 'progress_revision', 'action_revision', 'completion_revision', 'toolset_revision', 'scummbench_revision', 'mechanics_revision', 'runtime_revision']
               .map(key => [key, raw.version?.contract?.[key]])), isolated: raw.version?.isolated === true,
-        }, run: Object.fromEntries(['id', 'label', 'date', 'finished_at', 'actions', 'outcome', 'completion_verified', 'completion_actions', 'recorded_outcome', 'evidence_status', 'agent_version', 'agent_commit']
+        }, run: Object.fromEntries(['id', 'label', 'date', 'finished_at', 'actions', 'outcome', 'completion_verified', 'completion_actions', 'recorded_outcome', 'evidence_status', 'agent_version', 'agent_commit', 'progress_percent', 'missing_data', 'screenshot_status']
           .map(key => [key, raw.run?.[key]])) };
         item.run.points = raw.run?.points?.map(point => ({ actions: point.actions, progress: point.progress }));
         if (!HASH.test(item.version.id ?? '') || item.run.id !== item.source.id

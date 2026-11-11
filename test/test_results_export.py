@@ -56,10 +56,32 @@ class ResultsExportTests(unittest.TestCase):
         result = archive_display(stats)['display_result']['run']
         self.assertEqual(result['actions'], 3)
         self.assertEqual(result['points'], [])
-        self.assertEqual(result['evidence_status'], 'actions_only')
+        self.assertEqual(result['evidence_status'], 'summary_only')
         self.assertFalse(result['completion_verified'])
         self.assertIsNone(result['completion_actions'])
         self.assertEqual(result['recorded_outcome'], 'completed')
+
+    def test_missing_action_ledger_is_null_and_progress_snapshot_remains_independent(self):
+        stats = copy.deepcopy(self.stats)
+        stats['action_coverage'] = 'unavailable'
+        stats['verified_progress'].update(percent=42, won=False)
+        stats['screenshots'] = {'unresolved': [{'scope': 'invalid_embedded_image'}]}
+        result = archive_display(stats)['display_result']['run']
+        self.assertIsNone(result['actions'])
+        self.assertEqual(result['progress_percent'], 42)
+        self.assertEqual(result['points'], [])
+        self.assertEqual(result['screenshot_status'], 'incomplete')
+        self.assertEqual(len(result['missing_data']), 3)
+        self.assertIsNone(result['completion_actions'])
+
+    def test_native_ending_without_action_alignment_has_no_actions_to_finish(self):
+        stats = copy.deepcopy(self.stats)
+        del stats['progress_curve']
+        stats['verified_progress']['percent'] = 100
+        result = archive_display(stats)['display_result']['run']
+        self.assertTrue(result['completion_verified'])
+        self.assertIsNone(result['completion_actions'])
+        self.assertEqual(result['progress_percent'], 100)
 
 
 if __name__ == '__main__':

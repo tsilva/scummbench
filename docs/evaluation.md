@@ -154,3 +154,13 @@ Stopped and paused conversation snapshots can be registered as unfinished eviden
 Their actions and usage cover the archived conversation segment; resumed segments
 are not silently aggregated into whole-playthrough totals. Missing images, action
 coverage or native progress remain explicit gaps rather than inferred measurements.
+
+For unfinished legacy exports, AgentSCUMM offers `--allow-unavailable-images`.
+Invalid embedded image payloads are preserved with their checksums as explicit
+unavailable-image records. The portable verifier validates those gaps independently
+and still rejects incomplete screenshot evidence for a completed archive. Metrics
+are computed from structured requests and native progress, independently of images.
+`action_coverage: "unavailable"` means recognized MCP submissions are insufficient
+to establish the primitive-action total, for example with historical UI controls.
+The public total is null, never an inferred zero. A standalone native snapshot
+may be displayed without inventing a curve or an ending action count.

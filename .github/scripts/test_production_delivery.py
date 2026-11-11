@@ -1,0 +1,607 @@
+"""Fail-closed delivery tests; all external requests are mocked."""
+
+import importlib.util
+import os
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location(
+    "delivery", Path(__file__).with_name("production_delivery.py")
+)
+d = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(d)
+
+
+class DeliveryTests(unittest.TestCase):
+    def setUp(self):
+        self.config = {
+            "repository": "tsilva/example",
+            "secretNames": ["SENTRY_AUTH_TOKEN"],
+            "configNames": [],
+            "infisicalProjectId": "vault",
+            "identityId": "reader",
+            "vercelProjectId": "prj_example",
+            "vercelTeamId": "team_example",
+            "githubRepositoryId": 123,
+            "workerName": "example",
+            "cloudflareAccountId": "account",
+        }
+        self.sha = "a" * 40
+        self.env = {
+            "GITHUB_REPOSITORY": "tsilva/example",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_SHA": self.sha,
+            "GITHUB_WORKFLOW_REF": "tsilva/example/.github/workflows/production-delivery.yml@refs/heads/main",
+            "GH_TOKEN": "fake-github",
+            "VERCEL_TOKEN": "fake-vercel",
+            "CLOUDFLARE_API_TOKEN": "fake-cloudflare",
+        }
+
+    def test_fork_branch_event_and_workflow_fail_before_network(self):
+        cases = {
+            "GITHUB_REPOSITORY": "attacker/example",
+            "GITHUB_REF": "refs/heads/feature",
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_WORKFLOW_REF": "tsilva/example/.github/workflows/other.yml@refs/heads/main",
+        }
+        for key, value in cases.items():
+            with (
+                self.subTest(key=key),
+                patch.dict(os.environ, self.env | {key: value}, clear=True),
+                patch.object(d, "request") as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.context(self.config)
+                request.assert_not_called()
+
+    def test_old_commit_cannot_mutate(self):
+        with (
+            patch.dict(os.environ, self.env, clear=True),
+            patch.object(d, "request", return_value={"object": {"sha": "b" * 40}}),
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.context(self.config)
+
+    def test_malformed_sha_cannot_mutate(self):
+        with (
+            patch.dict(os.environ, self.env | {"GITHUB_SHA": "main"}, clear=True),
+            patch.object(d, "request") as request,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.context(self.config)
+            request.assert_not_called()
+
+    def test_duplicate_and_combined_targets_fail_closed(self):
+        for items in [
+            [{"key": "K", "target": ["production", "preview"]}],
+            [{"key": "K", "target": ["production"]}] * 2,
+            [{"key": "K", "target": ["production"], "gitBranch": "feature"}],
+        ]:
+            with self.subTest(items=items), self.assertRaises(d.DeliveryError):
+                d.production_matches(items, "K")
+
+    def test_preview_credentials_are_preserved(self):
+        production = {"key": "K", "target": ["production"]}
+        self.assertEqual(
+            d.production_matches(
+                [production, {"key": "K", "target": ["preview"]}], "K"
+            ),
+            [production],
+        )
+
+    def test_wrong_vercel_project_team_and_repo_fail_before_write(self):
+        good = {
+            "id": "prj_example",
+            "accountId": "team_example",
+            "link": {"repoId": "123"},
+        }
+        for bad in [
+            good | {"id": "other"},
+            good | {"accountId": "other"},
+            good | {"link": {"repoId": "456"}},
+        ]:
+            with (
+                self.subTest(bad=bad),
+                patch.object(d, "vercel_request", return_value=bad) as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.sync_vercel(self.config, {"SENTRY_AUTH_TOKEN": "fake-secret"})
+                self.assertEqual(
+                    [call.args[1] for call in request.call_args_list], ["GET"]
+                )
+
+    def test_missing_worker_binding_prevents_write(self):
+        with patch.object(d, "cloudflare_request", return_value=[]) as request:
+            with self.assertRaises(d.DeliveryError):
+                d.sync_worker(self.config, "fake-secret")
+            self.assertEqual([call.args[1] for call in request.call_args_list], ["GET"])
+
+    def test_ready_build_without_domain_assignment_is_not_live(self):
+        for assigned in [None, False, 0, "false", "true"]:
+            with self.subTest(assigned=assigned):
+                self.assertFalse(d.production_aliases_assigned(
+                    {"readyState": "READY", "aliasAssigned": assigned}
+                ))
+        for assigned in [True, 1792788551754]:
+            with self.subTest(assigned=assigned):
+                self.assertTrue(d.production_aliases_assigned(
+                    {"readyState": "READY", "aliasAssigned": assigned}
+                ))
+
+    def test_domain_assignment_error_holds_delivery(self):
+        with self.assertRaises(d.DeliveryError):
+            d.production_aliases_assigned({
+                "readyState": "READY", "aliasAssigned": True,
+                "aliasError": {"code": "check_failed", "message": "private provider detail"},
+            })
+
+    def test_deploy_waits_for_production_assignment_after_ready_build(self):
+        import contextlib
+        import io
+
+        ready = {
+            "projectId": "prj_example", "target": "production",
+            "readyState": "READY", "meta": {"githubCommitSha": self.sha},
+        }
+        output = io.StringIO()
+        with (
+            patch.dict(os.environ, {"GITHUB_RUN_ID": "1"}),
+            patch.object(d, "verify_ci"),
+            patch.object(d, "context") as context,
+            patch.object(d, "verify_vercel"),
+            patch.object(d, "vercel_request", side_effect=[
+                {"id": "dpl_example"}, ready | {"aliasAssigned": False},
+                ready | {"aliasAssigned": True},
+            ]) as request,
+            patch.object(d.time, "sleep") as sleep,
+            contextlib.redirect_stdout(output),
+        ):
+            d.deploy_vercel(self.config | {"vercelProjectName": "example"}, self.sha)
+        sleep.assert_called_once_with(15)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(context.call_count, 2)
+        self.assertEqual(output.getvalue().count("Production READY:"), 1)
+
+    def test_failed_ci_prevents_deployment(self):
+        with (
+            patch.object(d, "verify_ci", side_effect=d.DeliveryError("CI failed")),
+            patch.object(d, "vercel_request") as request,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.deploy_vercel(self.config, self.sha)
+            request.assert_not_called()
+
+    def test_untrusted_oidc_endpoint_is_rejected(self):
+        with (
+            patch.dict(
+                os.environ,
+                {"ACTIONS_ID_TOKEN_REQUEST_URL": "https://attacker.example/token"},
+                clear=True,
+            ),
+            patch.object(d, "request") as request,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.infisical_secrets(self.config)
+            request.assert_not_called()
+
+    def test_source_metadata_and_allowlist_are_enforced(self):
+        env = {
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.actions.githubusercontent.com/token?api=1",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "fake",
+        }
+        secret = {
+            "secretKey": "SENTRY_AUTH_TOKEN",
+            "workspace": "vault",
+            "environment": "prod",
+            "type": "shared",
+            "secretValue": "fake-secret",
+            "version": 3,
+        }
+        for wrong in [
+            secret | {"workspace": "other"},
+            secret | {"environment": "dev"},
+            secret | {"secretValue": ""},
+            secret | {"secretKey": "OTHER"},
+        ]:
+            with (
+                self.subTest(wrong=wrong),
+                patch.dict(os.environ, env, clear=True),
+                patch.object(d, "mask"),
+                patch.object(
+                    d,
+                    "request",
+                    side_effect=[
+                        {"value": "fake-jwt"},
+                        {"accessToken": "fake-access"},
+                        {"secret": wrong},
+                    ],
+                ) as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.infisical_secrets(self.config)
+                self.assertIn(
+                    "includeImports=false", request.call_args_list[-1].args[1]
+                )
+                self.assertIn(
+                    "expandSecretReferences=false", request.call_args_list[-1].args[1]
+                )
+
+    def test_empty_source_needs_no_identity_or_network(self):
+        with patch.object(d, "request") as req:
+            self.assertEqual(d.infisical_secrets({"secretNames": []}), {})
+            req.assert_not_called()
+
+    def test_reader_origin_is_public_configuration_but_auth_keys_are_not(self):
+        config = self.config | {
+            "secretNames": ["TUBESCRIBE_PUBLIC_ORIGIN", "CLERK_SECRET_KEY"],
+            "configNames": ["TUBESCRIBE_PUBLIC_ORIGIN"],
+        }
+        self.assertEqual(d.config_names(config), {"TUBESCRIBE_PUBLIC_ORIGIN"})
+        with self.assertRaises(d.DeliveryError):
+            d.config_names(config | {"configNames": ["CLERK_SECRET_KEY"]})
+
+    def test_all_targets_are_checked_before_first_write(self):
+        envs = [{"key": "SECOND", "target": ["production", "preview"]}]
+        with (
+            patch.object(d, "verify_vercel"),
+            patch.object(d, "vercel_request", return_value={"envs": envs}) as req,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.sync_vercel(
+                    self.config | {"secretNames": ["FIRST", "SECOND"]},
+                    {"FIRST": "fake-a", "SECOND": "fake-b"},
+                )
+            self.assertEqual([call.args[1] for call in req.call_args_list], ["GET"])
+
+    def test_multiple_keys_use_one_oidc_session(self):
+        env = {
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.actions.githubusercontent.com/token",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "fake",
+        }
+
+        def secret(name):
+            return {
+                "secret": {
+                    "secretKey": name,
+                    "workspace": "vault",
+                    "environment": "prod",
+                    "type": "shared",
+                    "secretValue": "fake-" + name,
+                }
+            }
+
+        config = self.config | {"secretNames": ["FIRST", "SECOND"]}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch.object(d, "mask"),
+            patch.object(
+                d,
+                "request",
+                side_effect=[
+                    {"value": "fake-jwt"},
+                    {"accessToken": "fake-access"},
+                    secret("FIRST"),
+                    secret("SECOND"),
+                ],
+            ) as req,
+        ):
+            self.assertEqual(
+                d.infisical_secrets(config),
+                {"FIRST": "fake-FIRST", "SECOND": "fake-SECOND"},
+            )
+            self.assertEqual(
+                sum(call.args[0] == "POST" for call in req.call_args_list), 1
+            )
+
+    def test_missing_source_stops_before_any_provider_write(self):
+        with (
+            patch.object(
+                d, "configuration", return_value=self.config | {"destination": "vercel"}
+            ),
+            patch.object(d, "context", return_value=self.sha),
+            patch.object(d, "verify_ci"),
+            patch.object(
+                d, "infisical_secrets", side_effect=d.DeliveryError("Missing key")
+            ),
+            patch.object(d, "sync_vercel") as sync,
+            patch.object(d.sys, "argv", ["delivery", "sync"]),
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.main()
+            sync.assert_not_called()
+
+    def test_secret_update_addresses_only_production_id(self):
+        key = "SENTRY_AUTH_TOKEN"
+        prod = {
+            "key": key,
+            "id": "prod-id",
+            "target": ["production"],
+            "type": "sensitive",
+            "visibility": "secret",
+        }
+        preview = prod | {"id": "preview-id", "target": ["preview"]}
+        with (
+            patch.object(d, "verify_vercel"),
+            patch.object(
+                d,
+                "vercel_request",
+                side_effect=[
+                    {"envs": [prod, preview]},
+                    prod,
+                    {"envs": [prod, preview]},
+                ],
+            ) as req,
+        ):
+            d.sync_vercel(self.config, {key: "fake-secret"})
+            call = req.call_args_list[1]
+            self.assertEqual(call.args[1], "PATCH")
+            self.assertTrue(call.args[2].endswith("/prod-id"))
+            self.assertNotIn("key", call.args[3])
+            self.assertNotIn("target", call.args[3])
+            self.assertEqual(call.args[3]["visibility"], "secret")
+
+    def test_config_migration_preserves_preview(self):
+        key = "SENTRY_DSN"
+        config = self.config | {"secretNames": [key], "configNames": [key]}
+        old = {
+            "key": key,
+            "id": "old-prod",
+            "target": ["production"],
+            "type": "sensitive",
+        }
+        preview = old | {"id": "preview-id", "target": ["preview"]}
+        new = old | {"id": "new-prod", "type": "encrypted", "visibility": "config"}
+        with (
+            patch.object(d, "verify_vercel"),
+            patch.object(
+                d,
+                "vercel_request",
+                side_effect=[
+                    {"envs": [old, preview]},
+                    {},
+                    {"created": new, "failed": []},
+                    {"envs": [new, preview]},
+                ],
+            ) as req,
+        ):
+            d.sync_vercel(config, {key: "https://public.example"})
+            self.assertEqual(
+                [c.args[1] for c in req.call_args_list],
+                ["GET", "DELETE", "POST", "GET"],
+            )
+            self.assertTrue(req.call_args_list[1].args[2].endswith("/old-prod"))
+            self.assertEqual(req.call_args_list[2].args[3]["target"], ["production"])
+            self.assertEqual(req.call_args_list[2].args[3]["visibility"], "config")
+
+    def test_config_classification_must_be_explicit_before_network(self):
+        missing = {k: v for k, v in self.config.items() if k != "configNames"}
+        for config in (missing, self.config | {"configNames": None}):
+            with self.subTest(config=config), patch.object(d, "request") as req:
+                with self.assertRaises(d.DeliveryError):
+                    d.sync_vercel(config, {"SENTRY_AUTH_TOKEN": "private"})
+                req.assert_not_called()
+
+    def test_auth_token_cannot_be_classified_as_config(self):
+        with patch.object(d, "vercel_request") as req:
+            with self.assertRaises(d.DeliveryError):
+                d.sync_vercel(
+                    self.config | {"configNames": ["SENTRY_AUTH_TOKEN"]},
+                    {"SENTRY_AUTH_TOKEN": "private"},
+                )
+            req.assert_not_called()
+
+    def test_combined_target_migration_fails_before_delete(self):
+        key = "SENTRY_DSN"
+        config = self.config | {"secretNames": [key], "configNames": [key]}
+        row = {
+            "key": key,
+            "id": "shared",
+            "target": ["production", "preview"],
+            "type": "sensitive",
+        }
+        with (
+            patch.object(d, "verify_vercel"),
+            patch.object(d, "vercel_request", return_value={"envs": [row]}) as req,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.sync_vercel(config, {key: "public"})
+            self.assertEqual([c.args[1] for c in req.call_args_list], ["GET"])
+
+    def test_provider_error_never_exposes_body_or_value(self):
+        with self.assertRaises(d.DeliveryError) as error:
+            d.confirmed_variable(
+                {
+                    "failed": [
+                        {"error": {"message": "private-value", "code": "private-value"}}
+                    ]
+                },
+                "SENTRY_AUTH_TOKEN",
+            )
+        self.assertIn("SENTRY_AUTH_TOKEN", str(error.exception))
+        self.assertNotIn("private-value", str(error.exception))
+
+    def test_create_accepts_object_or_single_element_list(self):
+        row = {"key": "K", "id": "prod-id"}
+        for created in (row, [row]):
+            self.assertEqual(
+                d.confirmed_variable({"created": created, "failed": []}, "K"), row
+            )
+        for created in ([], [row, row], {"key": "wrong"}):
+            with self.assertRaises(d.DeliveryError):
+                d.confirmed_variable({"created": created}, "K")
+
+    def test_missing_source_prevents_writes(self):
+        with patch.object(d, "vercel_request") as req:
+            with self.assertRaises(d.DeliveryError):
+                d.sync_vercel(self.config, {})
+            req.assert_not_called()
+
+
+class CompletedCIGateTests(unittest.TestCase):
+    """Synthetic GitHub events exercise the production authorization boundary."""
+
+    def setUp(self):
+        import json
+        import tempfile
+
+        self.json = json
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.event_path = Path(self.temp.name) / "event.json"
+        self.sha = "a" * 40
+        self.repo = {"id": 123, "full_name": "tsilva/example"}
+        self.config = {"repository": "tsilva/example", "githubRepositoryId": 123}
+        self.run = {
+            "id": 51, "workflow_id": 12, "run_number": 3, "run_attempt": 1,
+            "path": ".github/workflows/ci.yml", "event": "push",
+            "head_branch": "main", "head_sha": self.sha,
+            "status": "completed", "conclusion": "success",
+            "repository": self.repo.copy(), "head_repository": self.repo.copy(),
+        }
+        self.env = {
+            "GITHUB_REPOSITORY": "tsilva/example", "GITHUB_REF": "refs/heads/main",
+            "GITHUB_EVENT_NAME": "workflow_run", "GITHUB_SHA": self.sha,
+            "GITHUB_WORKFLOW_REF": "tsilva/example/.github/workflows/production-delivery.yml@refs/heads/main",
+            "GITHUB_EVENT_PATH": str(self.event_path), "GH_TOKEN": "fake-github",
+        }
+        self.write_event(self.run)
+
+    def write_event(self, run, **changes):
+        event = {"action": "completed", "repository": self.repo, "workflow_run": run}
+        self.event_path.write_text(self.json.dumps(event | changes))
+
+    def test_completed_main_ci_authorizes_its_exact_commit_without_sleeping(self):
+        with (
+            patch.dict(os.environ, self.env, clear=True),
+            patch.object(d, "request", side_effect=[
+                {"object": {"sha": self.sha}}, {"workflow_runs": [self.run]},
+            ]) as request,
+            patch.object(d.time, "sleep") as sleep,
+        ):
+            self.assertEqual(d.context(self.config), self.sha)
+            d.verify_ci(self.config, self.sha)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_not_called()
+        self.assertTrue(all(call.args[0] == "GET" for call in request.call_args_list))
+
+    def test_manual_dispatch_requires_already_successful_ci_without_event_file(self):
+        self.event_path.unlink()
+        with (
+            patch.dict(os.environ, self.env | {"GITHUB_EVENT_NAME": "workflow_dispatch"}, clear=True),
+            patch.object(d, "request", return_value={"workflow_runs": [self.run]}),
+            patch.object(d.time, "sleep") as sleep,
+        ):
+            d.verify_ci(self.config, self.sha)
+        sleep.assert_not_called()
+
+    def test_push_and_untrusted_events_are_rejected_before_network(self):
+        for event in ("push", "pull_request", "pull_request_target", "repository_dispatch"):
+            with (
+                self.subTest(event=event),
+                patch.dict(os.environ, self.env | {"GITHUB_EVENT_NAME": event}, clear=True),
+                patch.object(d, "request") as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.context(self.config)
+                request.assert_not_called()
+
+    def test_untrusted_or_unsuccessful_trigger_is_rejected_before_network(self):
+        bad = [
+            {"head_sha": "b" * 40}, {"head_branch": "feature"},
+            {"event": "pull_request"}, {"event": "workflow_dispatch"},
+            {"path": ".github/workflows/impostor.yml"},
+            {"conclusion": "failure"}, {"conclusion": "cancelled"},
+            {"conclusion": "skipped"}, {"conclusion": "neutral"},
+            {"status": "in_progress"}, {"id": 0}, {"run_attempt": True},
+            {"head_repository": self.repo | {"id": 456}},
+            {"repository": self.repo | {"id": 456}},
+            {"head_repository": self.repo | {"full_name": "attacker/example"}},
+        ]
+        for change in bad:
+            self.write_event(self.run | change)
+            with (
+                self.subTest(change=change), patch.dict(os.environ, self.env, clear=True),
+                patch.object(d, "request") as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.context(self.config)
+                request.assert_not_called()
+
+    def test_invalid_event_envelope_is_rejected_before_network(self):
+        for changes in ({"action": "requested"}, {"repository": self.repo | {"id": 456}}):
+            self.write_event(self.run, **changes)
+            with (
+                self.subTest(changes=changes), patch.dict(os.environ, self.env, clear=True),
+                patch.object(d, "request") as request,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.context(self.config)
+                request.assert_not_called()
+        self.event_path.write_text("not-json")
+        with patch.dict(os.environ, self.env, clear=True), patch.object(d, "request") as request:
+            with self.assertRaises(d.DeliveryError):
+                d.context(self.config)
+            request.assert_not_called()
+
+    def test_authoritative_ci_metadata_must_still_match_the_completed_event(self):
+        for change in (
+            {"id": 52}, {"workflow_id": 13}, {"run_attempt": 2}, {"run_number": 4},
+            {"status": "in_progress"}, {"conclusion": "failure"},
+            {"head_repository": self.repo | {"id": 456}},
+            {"path": ".github/workflows/impostor.yml"},
+        ):
+            with (
+                self.subTest(change=change), patch.dict(os.environ, self.env, clear=True),
+                patch.object(d, "request", return_value={"workflow_runs": [self.run | change]}) as request,
+                patch.object(d.time, "sleep") as sleep,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.verify_ci(self.config, self.sha)
+                request.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_latest_pending_or_failed_run_blocks_an_older_success(self):
+        for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "failure")):
+            latest = self.run | {"id": 52, "run_number": 4, "status": status, "conclusion": conclusion}
+            with (
+                self.subTest(status=status),
+                patch.dict(os.environ, self.env | {"GITHUB_EVENT_NAME": "workflow_dispatch"}, clear=True),
+                patch.object(d, "request", return_value={"workflow_runs": [self.run, latest]}),
+                patch.object(d.time, "sleep") as sleep,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.verify_ci(self.config, self.sha)
+                sleep.assert_not_called()
+
+    def test_missing_ci_blocks_before_any_secret_access(self):
+        with (
+            patch.dict(os.environ, self.env, clear=True),
+            patch.object(d, "configuration", return_value=self.config),
+            patch.object(d.sys, "argv", ["production_delivery.py", "sync"]),
+            patch.object(d, "request", side_effect=[
+                {"object": {"sha": self.sha}}, {"workflow_runs": []},
+            ]),
+            patch.object(d, "infisical_secrets") as secrets,
+            patch.object(d, "vercel_request") as vercel,
+            patch.object(d.time, "sleep") as sleep,
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.main()
+        secrets.assert_not_called()
+        vercel.assert_not_called()
+        sleep.assert_not_called()
+
+    def test_main_advancing_after_ci_completion_holds_delivery(self):
+        with (
+            patch.dict(os.environ, self.env, clear=True),
+            patch.object(d, "request", return_value={"object": {"sha": "b" * 40}}),
+        ):
+            with self.assertRaises(d.DeliveryError):
+                d.context(self.config)
+
+
+
+if __name__ == "__main__":
+    unittest.main()

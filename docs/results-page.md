@@ -18,8 +18,8 @@ benchmark version stay selected when other runs arrive.
 
 The printed `?demo=1` URL uses entirely synthetic sample runs. It never mixes
 sample and recorded data. The source control beneath the version selector
-switches between them. `web/results.json` remains an empty display-format example;
-it is not the live data source.
+switches between them. The local feed reads private evidence; the public website
+uses the separately published snapshot described below.
 
 ## Local sources
 
@@ -134,3 +134,38 @@ is isolated as a legacy benchmark version because frozen comparison conditions
 are missing. Agent package version and commit appear in run details when recorded;
 they do not determine the benchmark version. Re-registering the same unchanged
 archive is idempotent.
+
+Summary-only legacy records can expose a native progress snapshot and action total
+independently. Unknown totals display as Unavailable; snapshot percentages are
+labelled separately from action-aligned trajectories. Run details disclose missing
+image references, missing native progress and unavailable action alignment.
+
+
+## Public website
+
+The published explorer is at [scummbench.tsilva.eu](https://scummbench.tsilva.eu).
+It serves a static, public-safe snapshot, labelled **Published results** with its
+export timestamp in About. It checks for newly published snapshots every five
+seconds. A local run finishing does not change an already deployed snapshot.
+
+Canonical archive registration automatically refreshes `web/results.json` when
+running in this checkout. To regenerate it explicitly from the verified local
+registration receipts:
+
+```sh
+pnpm results:export
+pnpm build
+```
+
+The export checks registered manifest hashes and selects only public display
+fields. Unknown metrics remain null and legacy version identities remain separate.
+Raw archives, screenshots, paths, narratives and private receipts are excluded.
+Only the fixed public asset allowlist is copied into `dist/`; Vercel rewrites
+`/api/results` to that snapshot. `build-info.json` identifies the source commit
+and results revision. Builds reject linked assets or unexpected output files.
+
+Commit the updated snapshot to publish new measurements. CI validates the schema,
+build and synthetic verifier tests. The prepared [Production delivery workflow](production-delivery.md)
+requires a project-scoped `VERCEL_TOKEN` in GitHub's Production environment before
+it can deploy after successful exact-commit CI. No application secrets are needed.
+Private run storage is never uploaded to the hosting provider.

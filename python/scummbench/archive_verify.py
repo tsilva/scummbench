@@ -3,6 +3,7 @@
 Migrated from AgentSCUMM's exporter; verification never loads an agent checkout.
 """
 from collections import Counter
+import base64
 import hashlib
 import json
 import math
@@ -151,6 +152,19 @@ def records(path):
                 require(not line.endswith(b"\n") and not stream.read(1),
                         f"Malformed rollout JSON at line {number}")
 
+def verify_image_gap(gap):
+    require(gap.get("mime_type") in MIMES and gap.get("reason") == "Invalid or empty embedded screenshot base64",
+            "Invalid unavailable image metadata")
+    encoded = gap.get("recorded_data")
+    require(hashlib.sha256(dump(encoded).encode()).hexdigest() == gap.get("recorded_sha256"),
+            "Unavailable image payload checksum mismatch")
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError):
+        decoded = None
+    require(not decoded, "Available image cannot be relabeled as invalid")
+
+
 def verify_run(directory):
     directory = Path(directory)
     require(not directory.is_symlink(), "Linked run directory")
@@ -170,6 +184,7 @@ def verify_run(directory):
                 "Completed runs require 100 percent progress")
     verify_run_progress(stats)
     verify_progress_curve(stats)
+    require(stats.get("action_coverage") in (None, "unavailable"), "Invalid action coverage")
     AGENT.verify(directory, stats.get("agent"))
     if "total_actions" in stats or "total_action_sequences" in stats:
         for key, expected in (("total_actions", sum(stats["actions"].values())),
@@ -199,10 +214,15 @@ def verify_run(directory):
                 "Screenshot checksum mismatch")
     refs = Counter()
     unforwarded_fragments = 0
+    invalid_images = []
     def walk(value):
         nonlocal unforwarded_fragments
         if isinstance(value, dict):
             gap = value.get("unavailable_image")
+            invalid = isinstance(gap, dict) and gap.get("scope") == "invalid_embedded_image"
+            if invalid:
+                verify_image_gap(gap)
+                invalid_images.append({key: val for key, val in gap.items() if key != "recorded_data"})
             if isinstance(gap, dict) and gap.get("scope") == "unforwarded_mcp_result":
                 fragment = gap.get("recorded_data")
                 require(isinstance(fragment, str) and TRUNCATED.fullmatch(fragment),
@@ -215,8 +235,9 @@ def verify_run(directory):
                         "Screenshot reference mismatch")
                 refs[value["id"]] += 1
             require(not (value.get("type") == "image" and "data" in value), "Embedded image remains")
-            for child in value.values():
-                walk(child)
+            for key, child in value.items():
+                if not (invalid and key == "unavailable_image"):
+                    walk(child)
         elif isinstance(value, list):
             for child in value:
                 walk(child)
@@ -236,6 +257,8 @@ def verify_run(directory):
     require(sum(refs.values()) == stats["screenshots"]["references_in_trajectory"], "Screenshot reference count mismatch")
     require(all(refs[key] == entry["references"] for key, entry in images.items()), "Unreferenced screenshot or wrong reference count")
     unresolved = stats["screenshots"].get("unresolved", [])
+    require(invalid_images == [gap for gap in unresolved if gap.get("scope") == "invalid_embedded_image"],
+            "Unavailable image coverage mismatch")
     require(unforwarded_fragments == sum(gap.get("scope") == "unforwarded_mcp_result" for gap in unresolved),
             "Unforwarded screenshot fragment count mismatch")
     require(stats["status"] != "completed" or len(unresolved) == unforwarded_fragments,

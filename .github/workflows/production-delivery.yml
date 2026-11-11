@@ -1,0 +1,112 @@
+name: Production delivery
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-secret-delivery
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Test delivery boundaries and verify completed CI
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.action == 'completed' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_sha == github.sha &&
+        github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+        github.event.workflow_run.repository.id == github.repository_id &&
+        github.event.workflow_run.head_repository.id == github.repository_id))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out the exact main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Test delivery boundaries without credentials
+        run: python3 -m unittest discover -s .github/scripts -p test_production_delivery.py
+      - name: Verify this commit's completed CI
+        run: python3 .github/scripts/production_delivery.py check
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  sync:
+    name: Sync allowlisted Infisical production keys
+    needs: checks
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.action == 'completed' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_sha == github.sha &&
+        github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+        github.event.workflow_run.repository.id == github.repository_id &&
+        github.event.workflow_run.head_repository.id == github.repository_id))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Check out the exact main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Sync the pinned production keys
+        run: python3 .github/scripts/production_delivery.py sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  deploy:
+    name: Deploy synced commit after CI succeeds
+    needs: sync
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.action == 'completed' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_sha == github.sha &&
+        github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+        github.event.workflow_run.repository.id == github.repository_id &&
+        github.event.workflow_run.head_repository.id == github.repository_id))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out the exact main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify CI and deploy the exact synced commit
+        run: python3 .github/scripts/production_delivery.py deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

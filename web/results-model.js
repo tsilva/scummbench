@@ -27,10 +27,14 @@ export function validateResults(data) {
         require(typeof run.completion_verified === 'boolean', 'Missing completion verification.');
         if (run.finished_at !== undefined) require(typeof run.finished_at === 'string'
           && !Number.isNaN(Date.parse(run.finished_at)) && new Date(run.finished_at).toISOString().slice(0, 10) === run.date, 'Invalid finish timestamp.');
-        require(Number.isSafeInteger(run.actions) && run.actions >= 0, 'Invalid action count.');
-        const countsOnly = run.evidence_status === 'actions_only';
-        require(Array.isArray(run.points) && (countsOnly ? run.points.length === 0 : run.points.length > 0), 'No verified milestone samples.');
-        require(!countsOnly || (!run.completion_verified && run.completion_actions == null), 'Counts alone cannot establish completion.');
+        const summary = run.evidence_status === 'summary_only';
+        require((summary && run.actions === null) || (Number.isSafeInteger(run.actions) && run.actions >= 0), 'Invalid action count.');
+        require(run.progress_percent == null || (Number.isFinite(run.progress_percent) && run.progress_percent >= 0 && run.progress_percent <= 100), 'Invalid progress snapshot.');
+        require(run.missing_data === undefined || (Array.isArray(run.missing_data) && run.missing_data.length <= 10 && run.missing_data.every(text)), 'Invalid missing-data reasons.');
+        require(run.screenshot_status === undefined || ['available', 'incomplete', 'unavailable'].includes(run.screenshot_status), 'Invalid screenshot coverage.');
+        const noCurve = summary || run.evidence_status === 'actions_only';
+        require(Array.isArray(run.points) && (noCurve ? run.points.length === 0 : run.points.length > 0), 'No verified milestone samples.');
+        require(!noCurve || run.completion_actions == null, 'Missing action alignment cannot establish actions to finish.');
         let actions = -1, progress = -1;
         for (const point of run.points) {
           require(Number.isSafeInteger(point.actions) && point.actions >= 0 && point.actions >= actions
@@ -41,10 +45,10 @@ export function validateResults(data) {
           actions = point.actions; progress = point.progress;
         }
         require((run.outcome === 'completed') === run.completion_verified, 'Completion outcome needs independent verification.');
-        require((progress === 100) === run.completion_verified, '100% is reserved for verified completion.');
+        require(((summary ? run.progress_percent : progress) === 100) === run.completion_verified, '100% is reserved for verified completion.');
         const finish = run.completion_actions ?? run.actions;
         require(run.completion_actions == null || run.completion_verified, 'Unfinished runs cannot claim actions to finish.');
-        require(!run.completion_verified || (Number.isSafeInteger(finish) && finish >= 0 && finish <= run.actions && actions === finish),
+        require(!run.completion_verified || summary || (Number.isSafeInteger(finish) && finish >= 0 && finish <= run.actions && actions === finish),
           'Completed run must stop at its verified ending.');
       }
     }
@@ -73,6 +77,7 @@ export function stepVertices(run) {
 }
 
 export function actionsToFinish(run) {
+  if (run.evidence_status === 'summary_only') return null;
   return run.completion_verified ? run.completion_actions ?? run.actions : null;
 }
 

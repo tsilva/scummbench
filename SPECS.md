@@ -57,3 +57,14 @@ Recorded results refresh automatically from finished local runs and registered
 archive receipts. Missing progress is reported rather than inferred. Unknown or
 dirty comparison provenance isolates a run in a legacy version. Progress samples
 stay private to evaluation and results; they are never added to player observations.
+
+Verified action and native-progress measurements can be recovered from unfinished
+legacy archives even when screenshots are invalid. Image gaps remain explicit;
+unknown action totals remain null. Progress snapshots without verified action
+alignment have no fabricated chart trajectory or actions-to-finish value.
+
+
+The public explorer is served at scummbench.tsilva.eu from a verified,
+public-safe registration snapshot. Its publication timestamp is explicit;
+new public measurements require snapshot publication. The local feed continues
+to refresh from finished private runs. Hosting never serves private artifacts.

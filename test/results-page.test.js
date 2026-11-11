@@ -47,6 +47,20 @@ test('counts-only legacy evidence never invents milestone geometry or completion
   assert.throws(() => validateResults(data));
 });
 
+test('summary records keep unknown actions null and never infer ending action counts', () => {
+  const data = fixture(), run = data.games[0].benchmarks[0].runs[0];
+  run.evidence_status = 'summary_only'; run.points = []; run.actions = null;
+  run.progress_percent = 29; run.outcome = 'stopped'; run.completion_verified = false;
+  run.completion_actions = null; run.missing_data = ['Action ledger unavailable'];
+  validateResults(data);
+  assert.equal(actionsToFinish(run), null);
+  run.progress_percent = 100; run.completion_verified = true; run.outcome = 'completed';
+  validateResults(data);
+  assert.equal(actionsToFinish(run), null);
+  run.completion_actions = 0;
+  assert.throws(() => validateResults(data));
+});
+
 test('reject mixed or missing version contracts, duplicate IDs and malformed dates', () => {
   for (const change of [
     data => { delete data.games[0].benchmarks[0].contract.progress_revision; },
@@ -103,7 +117,9 @@ test('preview serves only the public display files and refuses writes', async t 
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Progress vs actions/);
   assert.match(page.headers.get('content-security-policy'), /frame-ancestors 'none'/);
-  assert.deepEqual(await (await fetch(`${url}results.json`)).json(), { schema_version: 1, games: [] });
+  const snapshot = validateResults(await (await fetch(`${url}results.json`)).json());
+  assert.equal(snapshot.publication.mode, 'snapshot');
+  assert.match(snapshot.revision, /^[a-f0-9]{64}$/);
   for (const route of ['package.json', 'runs/private/result.json', '%2e%2e%2fREADME.md']) assert.equal((await fetch(`${url}${route}`)).status, 404);
   assert.equal((await fetch(url, { method: 'POST', body: 'test' })).status, 405);
 });

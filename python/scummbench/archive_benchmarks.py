@@ -132,6 +132,8 @@ def benchmark_status(stats):
     return f"~{estimate:g}%" if estimate is not None else "Unknown"
 
 def benchmark_actions(stats):
+    if stats.get("action_coverage") == "unavailable":
+        return ["Unavailable", "Unavailable"]
     return [f"{stats.get('total_actions', sum(stats['actions'].values())):,}",
             f"{stats.get('total_action_sequences', stats['action_sequences']['count']):,}"]
 

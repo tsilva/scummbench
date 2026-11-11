@@ -111,6 +111,9 @@ def register(archive: Path, *, source_repo: Path, store: Path,
             "trajectory_sha256": checksum, "archive_manifest_sha256": hashlib.sha256((archive / "run.json").read_bytes()).hexdigest(),
             "game_id": stats["game_id"], "status": stats["status"], "official_eligible": False,
             **archive_display(stats)})
+        if (store / "web/index.html").is_file():
+            from .public_results import publish
+            publish(store)
         return {"benchmark_added": added, "results_owner": "scummbench", "benchmark_path": str(target), "receipt": str(receipt)}
     finally:
         lock.unlink()

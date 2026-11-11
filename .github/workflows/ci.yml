@@ -17,3 +17,6 @@ jobs:
       - run: node scripts/check.js
       - run: node --test test/*.test.js
       - run: python3 -B -m unittest discover -s python_tests -v
+      - run: python3 -B -m unittest discover -s test -p "test_*.py" -v
+      - run: python3 -B -m unittest discover -s .github/scripts -p test_production_delivery.py
+      - run: node scripts/build-results.js

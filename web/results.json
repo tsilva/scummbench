@@ -1,4 +1,742 @@
 {
   "schema_version": 1,
-  "games": []
+  "games": [
+    {
+      "id": "beneath-a-steel-sky",
+      "label": "Beneath a Steel Sky",
+      "benchmarks": [
+        {
+          "id": "fb3ff9c3e8a8e873dfa95fb6c24c5f185f6f80e5ea72833adc694d61cc76d272",
+          "label": "Legacy \u00b7 fb3ff9c3",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-34aa50b805ea0f59c91846fe484a2888454a1f18e40274f7a7cc1528b10016e1",
+              "label": "Archived run 34aa50b8",
+              "date": "2026-11-08",
+              "finished_at": "2026-11-08T11:42:45.481000Z",
+              "actions": 3463,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "completed",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "2bc151fa0a25747dfad0c93f1be69b0415c8ef4241b1fa99adb7fe94ef3e5e0a",
+          "label": "Legacy \u00b7 2bc151fa",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-2ef6281d8d159c30daca8c1d043823d82e4a30251fefaa677e90b84f7c1e6f64",
+              "label": "Archived run 2ef6281d",
+              "date": "2026-11-08",
+              "finished_at": "2026-11-08T09:53:39.907000Z",
+              "actions": null,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Primitive action total unavailable for legacy UI controls",
+                "Native progress unavailable",
+                "1 screenshot references unavailable"
+              ],
+              "screenshot_status": "incomplete",
+              "points": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "elvira-ii-the-jaws-of-cerberus",
+      "label": "Elvira II: The Jaws of Cerberus",
+      "benchmarks": [
+        {
+          "id": "bdf63774dab856c4beeac032a030452acd2c2ae7e8ef71bfc5a41cee9bc26a9d",
+          "label": "Legacy \u00b7 bdf63774",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "5f4767d32c5e7196ebb0a01ee0656199aa7feae8e352f728c8dcaf0cc375b4a4",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-1a9d1b1f72e78faaa256978eee9ca5e9241ae09854d602273d1d197428082228",
+              "label": "Archived run 1a9d1b1f",
+              "date": "2026-11-10",
+              "finished_at": "2026-11-10T17:16:21.680000Z",
+              "actions": 2832,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": 0,
+              "missing_data": [
+                "Progress has no verified alignment to submitted actions"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "064aebcfa827cca9eb82910d1f94cb0b208497c9489bb19381049872a9de5328",
+          "label": "Legacy \u00b7 064aebcf",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "5f4767d32c5e7196ebb0a01ee0656199aa7feae8e352f728c8dcaf0cc375b4a4",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-133893fe095af519209f6bd0aa7081161c6cbb7b5df846b4e34f53e34c3a87d5",
+              "label": "Archived run 133893fe",
+              "date": "2026-11-10",
+              "finished_at": "2026-11-10T11:42:39.159000Z",
+              "actions": 3083,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": 0,
+              "missing_data": [
+                "Progress has no verified alignment to submitted actions",
+                "7 screenshot references unavailable"
+              ],
+              "screenshot_status": "incomplete",
+              "points": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "elvira-mistress-of-the-dark",
+      "label": "Elvira: Mistress of the Dark",
+      "benchmarks": [
+        {
+          "id": "5a26117a08fcd4dba021727ca3e0ce21af7cf712f39f26bf0743f5d4264958e6",
+          "label": "Legacy \u00b7 5a26117a",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-4e77755859b6a1398dabad4b8c9c1d6084418e5ab2354076ebcd466a331580d3",
+              "label": "Archived run 4e777558",
+              "date": "2026-11-09",
+              "finished_at": "2026-11-09T13:06:39.147000Z",
+              "actions": 1035,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable",
+                "49 screenshot references unavailable"
+              ],
+              "screenshot_status": "incomplete",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "3e3f6eb2cb4a46ad684338d7833ec140a208333d4d45dd5e2ee98359771c26c6",
+          "label": "Legacy \u00b7 3e3f6eb2",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-39ce4b067f808b6f965f6484ae89d1c971cfc865ca84bf45c1c69406a31f70f2",
+              "label": "Archived run 39ce4b06",
+              "date": "2026-11-06",
+              "finished_at": "2026-11-06T20:55:26.763000Z",
+              "actions": null,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Primitive action total unavailable for legacy UI controls",
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flight-of-the-amazon-queen",
+      "label": "Flight of the Amazon Queen",
+      "benchmarks": [
+        {
+          "id": "c18f3090e2ed56d9a68c6f90283c755e3b3504fbb489de637c9e0e967e47f6a4",
+          "label": "Legacy \u00b7 c18f3090",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "00e1646e8a52b6b5a0e7238bda0ab16a4acec1462dff41ca47cfa0b42418a51c",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-df6fcaa4f3a75afa86d3e6fc7bb5c0d7ecd6daef620892d1fda89f3d697e8be3",
+              "label": "Archived run df6fcaa4",
+              "date": "2026-11-11",
+              "finished_at": "2026-11-11T09:49:02.362000Z",
+              "actions": 506,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "milestones",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": 11,
+              "missing_data": [],
+              "screenshot_status": "available",
+              "points": [
+                {
+                  "actions": 0,
+                  "progress": 0
+                },
+                {
+                  "actions": 59,
+                  "progress": 3
+                },
+                {
+                  "actions": 134,
+                  "progress": 5
+                },
+                {
+                  "actions": 315,
+                  "progress": 8
+                },
+                {
+                  "actions": 448,
+                  "progress": 11
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cfd6a23b3ea62fdfb8346f82aa75e530b43c9ef307a0ae3a9520e58f4b7c5525",
+          "label": "Legacy \u00b7 cfd6a23b",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "00e1646e8a52b6b5a0e7238bda0ab16a4acec1462dff41ca47cfa0b42418a51c",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-831f62696ab7e2c4463b137119015cbbcf3f20aaea1842d533309af6e7f85785",
+              "label": "Archived run 831f6269",
+              "date": "2026-11-10",
+              "finished_at": "2026-11-10T22:27:58.117000Z",
+              "actions": 5255,
+              "outcome": "completed",
+              "completion_verified": true,
+              "completion_actions": 5249,
+              "recorded_outcome": "completed",
+              "evidence_status": "milestones",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": 100,
+              "missing_data": [],
+              "screenshot_status": "available",
+              "points": [
+                {
+                  "actions": 0,
+                  "progress": 0
+                },
+                {
+                  "actions": 102,
+                  "progress": 3
+                },
+                {
+                  "actions": 180,
+                  "progress": 5
+                },
+                {
+                  "actions": 379,
+                  "progress": 8
+                },
+                {
+                  "actions": 697,
+                  "progress": 11
+                },
+                {
+                  "actions": 802,
+                  "progress": 14
+                },
+                {
+                  "actions": 827,
+                  "progress": 16
+                },
+                {
+                  "actions": 835,
+                  "progress": 19
+                },
+                {
+                  "actions": 1250,
+                  "progress": 22
+                },
+                {
+                  "actions": 1266,
+                  "progress": 24
+                },
+                {
+                  "actions": 1533,
+                  "progress": 27
+                },
+                {
+                  "actions": 1595,
+                  "progress": 30
+                },
+                {
+                  "actions": 1910,
+                  "progress": 32
+                },
+                {
+                  "actions": 1935,
+                  "progress": 35
+                },
+                {
+                  "actions": 1944,
+                  "progress": 38
+                },
+                {
+                  "actions": 2274,
+                  "progress": 41
+                },
+                {
+                  "actions": 2683,
+                  "progress": 43
+                },
+                {
+                  "actions": 2695,
+                  "progress": 46
+                },
+                {
+                  "actions": 2727,
+                  "progress": 49
+                },
+                {
+                  "actions": 2810,
+                  "progress": 51
+                },
+                {
+                  "actions": 2991,
+                  "progress": 54
+                },
+                {
+                  "actions": 3193,
+                  "progress": 57
+                },
+                {
+                  "actions": 3637,
+                  "progress": 59
+                },
+                {
+                  "actions": 3650,
+                  "progress": 62
+                },
+                {
+                  "actions": 3662,
+                  "progress": 65
+                },
+                {
+                  "actions": 3785,
+                  "progress": 68
+                },
+                {
+                  "actions": 3818,
+                  "progress": 70
+                },
+                {
+                  "actions": 4124,
+                  "progress": 73
+                },
+                {
+                  "actions": 4262,
+                  "progress": 76
+                },
+                {
+                  "actions": 4310,
+                  "progress": 78
+                },
+                {
+                  "actions": 4323,
+                  "progress": 81
+                },
+                {
+                  "actions": 4592,
+                  "progress": 84
+                },
+                {
+                  "actions": 4592,
+                  "progress": 86
+                },
+                {
+                  "actions": 4642,
+                  "progress": 89
+                },
+                {
+                  "actions": 5037,
+                  "progress": 92
+                },
+                {
+                  "actions": 5069,
+                  "progress": 95
+                },
+                {
+                  "actions": 5092,
+                  "progress": 97
+                },
+                {
+                  "actions": 5249,
+                  "progress": 100
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "46e1966bacb30c54416a1844cc879a140f720e145baed47a9af5497eb72407ce",
+          "label": "Legacy \u00b7 46e1966b",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-9ee95d7127e3c564505c1994769edc53961049e230447c232dc53420b12d1285",
+              "label": "Archived run 9ee95d71",
+              "date": "2026-11-09",
+              "finished_at": "2026-11-09T11:56:28.306000Z",
+              "actions": 7286,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "completed",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "d0792a6389bfdd16fd750cedd3281e83274386e84237e38daee138d667ae4166",
+          "label": "Legacy \u00b7 d0792a63",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-ccf2ed96b408382f92cc7cb76ce2cd47dc0d2cf57ad7a3709eaf71e1c4d366ce",
+              "label": "Archived run ccf2ed96",
+              "date": "2026-11-09",
+              "finished_at": "2026-11-09T11:26:31.169000Z",
+              "actions": 1124,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": 29,
+              "missing_data": [
+                "Progress has no verified alignment to submitted actions",
+                "45 screenshot references unavailable"
+              ],
+              "screenshot_status": "incomplete",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "9984f98f5efaed4fb8b4a1f170d7cd8e6a7cc1b1fd1994217acc23c074573dc4",
+          "label": "Legacy \u00b7 9984f98f",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-75e60dd72cd1cb2f1673d8e8f6cf58074d164fe86bbac85f2cbef54ebb92d5e7",
+              "label": "Archived run 75e60dd7",
+              "date": "2026-11-08",
+              "finished_at": "2026-11-08T19:17:24.457000Z",
+              "actions": 8988,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "completed",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable",
+                "21 screenshot references unavailable"
+              ],
+              "screenshot_status": "incomplete",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "5527b81233d3b7c38b8692632241fefd68ab8c5fb1f0fc3841fe47f7fcf11b75",
+          "label": "Legacy \u00b7 5527b812",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Undeclared; isolated archive",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-6bd7d382fce056d0b0154e2500e767250e3a352e8aae39214200926dab587959",
+              "label": "Archived run 6bd7d382",
+              "date": "2026-11-06",
+              "finished_at": "2026-11-06T12:21:31.831000Z",
+              "actions": null,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "stopped",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Primitive action total unavailable for legacy UI controls",
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        },
+        {
+          "id": "1948db2b5ceb02800c2871f4f3b1dcdd4f1f55447ce8305cdd16b8d3b76d24dc",
+          "label": "Legacy \u00b7 1948db2b",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-ea00d2f2c82e3fea5333a08d1bc4545f366f058d045dde0bc20aaf785bec2e81",
+              "label": "Archived run ea00d2f2",
+              "date": "2026-11-06",
+              "finished_at": "2026-11-06T08:34:32.955000Z",
+              "actions": 8530,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "completed",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "indiana-jones-and-the-last-crusade",
+      "label": "Indiana Jones and the Last Crusade",
+      "benchmarks": [
+        {
+          "id": "63b2df828885498df6d4387ae7a9efca4e4d956aeb748563c1674d2d1247f630",
+          "label": "Legacy \u00b7 63b2df82",
+          "context": "Archived play \u00b7 Starting state unknown",
+          "isolated": true,
+          "contract": {
+            "game_edition": "Unknown; isolated archive",
+            "start": "Unknown; isolated archive",
+            "track": "Assisted",
+            "progress_revision": "Unknown; isolated archive",
+            "action_revision": "submitted-records-v1",
+            "completion_revision": "native-won-v1",
+            "toolset_revision": "Unknown; isolated archive"
+          },
+          "runs": [
+            {
+              "id": "archive-0004e66106b7c5f0aacb7614317897c1c8b529b183cdca196c41e5196f7d56b3",
+              "label": "Archived run 0004e661",
+              "date": "2026-11-07",
+              "finished_at": "2026-11-07T18:16:40.877000Z",
+              "actions": 2769,
+              "outcome": "stopped",
+              "completion_verified": false,
+              "completion_actions": null,
+              "recorded_outcome": "completed",
+              "evidence_status": "summary_only",
+              "agent_version": null,
+              "agent_commit": null,
+              "progress_percent": null,
+              "missing_data": [
+                "Native progress unavailable"
+              ],
+              "screenshot_status": "available",
+              "points": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": {
+    "discovered": 14,
+    "plotted": 2,
+    "counts_only": 12,
+    "unavailable": {}
+  },
+  "revision": "9fbf793d3163d711df473d7d92d99983b16d324961097d666cfc98231b56352e",
+  "publication": {
+    "mode": "snapshot",
+    "generated_at": "2026-11-11T14:27:29.396029+00:00"
+  }
 }

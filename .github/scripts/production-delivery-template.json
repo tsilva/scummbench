@@ -1,0 +1,10 @@
+{
+  "sourceRepository": "https://github.com/tsilva/private-skills",
+  "sourcePath": "templates/production-delivery",
+  "sha256": {
+    "production_delivery.py": "3d3de71a1585a3dd1b8c92691d266f6d3b465c657297c59a66c87933c39b7542",
+    "test_production_delivery.py": "1d8048834be8c8a6ce5f5644a4c8d14325c566cea0d67b5ab70b77d129251823",
+    "production-delivery.yml": "3f940b20cf1a92117f78748ec2d2b839626cb84ef967efc5a13d45b402b5dc34",
+    "README.md": "60436b9ef234a3b5d6a82174b3eab1440c9730b0af34a8bce4c8ac894dd58ecc"
+  }
+}

@@ -15,6 +15,8 @@
     "dev": "node scripts/results-dev.js",
     "test": "node --test test/*.test.js && python3 -B -m unittest discover -s test -p \"test_*.py\" -v",
     "check": "node scripts/check.js",
-    "tasks": "node src/cli.js tasks"
+    "tasks": "node src/cli.js tasks",
+    "build": "node scripts/build-results.js",
+    "results:export": "PYTHONPATH=python python3 -B -m scummbench.public_results"
   }
 }
