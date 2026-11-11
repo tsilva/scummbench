@@ -197,5 +197,5 @@ not upload again. Inspect `status.json` and `receipt.json` for delivery state.
 The checked-in `web/results.json` remains a bootstrap snapshot. `pnpm results:export`
 can regenerate it explicitly, and `pnpm build` validates it while copying only
 public assets into `dist/`. Runtime public data is independent of these assets.
-The [Production delivery workflow](production-delivery.md) governs code deployment;
+The [Production deployment guide](deployment.md) governs code deployment;
 it is separate from automatic result publication.

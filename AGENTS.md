@@ -89,3 +89,21 @@ protected client-hash updates are explicit trusted administration, never an
 ordinary startup hook. Missing/invalid profiles fail with no other credential
 route. Require fake-key, denied-host and sandbox checks before real publication.
 See `docs/results-page.md` for automatic retries and delivery receipts.
+
+## Production deployment credential
+
+Code delivery uses `.github/workflows/production-delivery.yml` after successful
+exact-commit main CI. Its `VERCEL_TOKEN` is limited to the ScummBench Vercel project
+`prj_Hgb3VY4wa4eFo9A5Xnrqnl9CuJ1X` in team `team_eE2Iv7IMqPOx8ZVN2xNfR2f0`.
+The reviewed source is `https://app.infisical.com`, Secret Manager project
+`cba79865-b229-4181-909b-0da11a052799`, environment `prod`, folder
+`/scummbench-deployment`, key `VERCEL_TOKEN`. GitHub's `Production` environment
+holds the CI copy. This is separate from the Blob result publisher credential.
+
+Provisioning or rotation is explicit trusted administration: transfer only the
+approved source to that GitHub environment in memory, without printing values,
+writing credential files, or passing values through command arguments. Ordinary
+local service commands must not retrieve or inject this token. Use the connected
+Vercel tools for supported maintenance; no local deployment proxy is provisioned.
+Keep the exact-commit CI, destination and Production alias checks enforced.
+See `docs/deployment.md` for operation and verification.

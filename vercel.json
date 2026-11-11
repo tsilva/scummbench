@@ -4,6 +4,9 @@
   "buildCommand": "pnpm build",
   "installCommand": "",
   "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": false
+  },
   "headers": [
     {
       "source": "/(.*)",
