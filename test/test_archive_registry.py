@@ -74,6 +74,55 @@ class ArchiveRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'totals'):
             verify_progress_curve(stats)
 
+    def test_agent_version_survives_canonical_copy_and_tampering_fails(self):
+        identity = {'name': 'agentscumm', 'version': '1.2.3', 'commit_id': 'a' * 40,
+                    'dirty': False, 'source': 'clean_play_preflight'}
+        data = json.dumps(identity).encode()
+        (self.archive / 'agent-provenance.json').write_bytes(data)
+        self.stats['agent'] = {**identity, 'evidence': {'path': 'agent-provenance.json',
+            'sha256': hashlib.sha256(data).hexdigest()}}
+        self.write_stats()
+        result = register(self.archive, source_repo=self.root, store=self.root)
+        receipt = json.loads(Path(result['receipt']).read_text())
+        canonical = Path(receipt['archive'])
+        self.assertNotEqual(canonical, self.archive)
+        self.assertEqual(verify_run(canonical)['agent']['version'], '1.2.3')
+        self.assertIn('1.2.3 @ aaaaaaa', (self.root / 'BENCHMARKS.md').read_text())
+        self.assertTrue(self.archive.exists())
+        identity['resume_checkpoints'] = [{**identity, 'version': '1.2.4', 'commit_id': 'b' * 40}]
+        data = json.dumps(identity).encode()
+        (self.archive / 'agent-provenance.json').write_bytes(data)
+        self.stats['agent'] = {**identity, 'evidence': {'path': 'agent-provenance.json',
+            'sha256': hashlib.sha256(data).hexdigest()}}
+        self.write_stats()
+        register(self.archive, source_repo=self.root, store=self.root)
+        self.assertIn('1.2.3 @ aaaaaaa, 1.2.4 @ bbbbbbb', (self.root / 'BENCHMARKS.md').read_text())
+        self.stats['agent']['version'] = '9.9.9'
+        self.write_stats()
+        with self.assertRaisesRegex(ValueError, 'checksum or identity'):
+            register(self.archive, source_repo=self.root, store=self.root)
+
+    def test_canonical_collision_never_overwrites_or_deletes_source(self):
+        register(self.archive, source_repo=self.root, store=self.root)
+        trajectory = b'{"type":"session_meta","payload":{"id":"different"}}\n'
+        (self.archive / 'trajectory.jsonl').write_bytes(trajectory)
+        self.stats['trajectory']['sha256'] = hashlib.sha256(trajectory).hexdigest()
+        self.write_stats()
+        with self.assertRaisesRegex(ValueError, 'Different archive'):
+            register(self.archive, source_repo=self.root, store=self.root)
+        self.assertTrue(self.archive.exists())
+
+    def test_verified_reexport_retains_both_evidence_revisions(self):
+        first = register(self.archive, source_repo=self.root, store=self.root)
+        prior = Path(json.loads(Path(first['receipt']).read_text())['archive'])
+        self.stats['estimated_progress_percent'] = 5
+        self.write_stats()
+        second = register(self.archive, source_repo=self.root, store=self.root)
+        current = Path(json.loads(Path(second['receipt']).read_text())['archive'])
+        self.assertNotEqual(prior, current)
+        self.assertEqual(verify_run(prior)['estimated_progress_percent'], 0)
+        self.assertEqual(verify_run(current)['estimated_progress_percent'], 5)
+
 
 if __name__ == '__main__':
     unittest.main()

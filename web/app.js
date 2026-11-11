@@ -1,10 +1,38 @@
 import { validateResults, selectBenchmark, actionsToFinish, shortDate } from './results-model.js';
 import { ProgressChart } from './chart.js';
+import { LiveResults } from './live-results.js';
 
 const $ = id => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
 const state = { data: { schema_version: 1, games: [] }, game: parameters.get('game'), benchmark: parameters.get('benchmark'), demo: parameters.get('demo') === '1' };
 let loadRevision = 0;
+let pendingData, feedStale = false;
+async function fetchResults(signal) {
+  const bounded = AbortSignal.any([AbortSignal.timeout(10000), ...(signal ? [signal] : [])]);
+  const response = await fetch('./api/results', { cache: 'no-store', signal: bounded });
+  if (!response.ok) throw new Error('Results could not be loaded.');
+  return validateResults(await response.json());
+}
+function markFresh() {
+  if (feedStale) $('announcement').textContent = 'Live results connection restored.';
+  feedStale = false;
+  $('data-source').textContent = 'Live results';
+  $('data-source').title = 'Refreshes every 5 seconds. Switch to sample data.';
+}
+function acceptUpdate(data) {
+  if (state.demo) return;
+  markFresh();
+  if (state.data.revision === data.revision) return;
+  if (document.activeElement?.matches('select')) { pendingData = data; return; }
+  const open = $('accessible-data').open;
+  state.data = data; render(); $('accessible-data').open = open;
+}
+const live = new LiveResults({ fetchResults, onData: acceptUpdate,
+  onError: () => {
+    feedStale = true; $('data-source').textContent = 'Results · retrying';
+    $('data-source').title = 'Showing the last successful results. Click to retry now.';
+    $('announcement').textContent = 'Live results could not refresh. Showing the last successful data; retrying automatically.';
+  }, visible: () => !document.hidden });
 const chart = new ProgressChart({ canvas: $('chart'), labels: $('run-labels'), tooltip: $('tooltip'), onSelect: showRun });
 const option = (value, label) => Object.assign(document.createElement('option'), { value, textContent: label });
 function setOptions(select, values, selected, empty) {
@@ -26,51 +54,55 @@ function render() {
   $('game').title = game?.label ?? 'Game results';
   setOptions($('benchmark'), game?.benchmarks ?? [], benchmark?.id, 'No benchmark versions');
   $('context').textContent = benchmark?.context ?? 'Adventure-game agent evaluation';
-  $('data-source').textContent = state.demo ? 'Sample data' : 'Recorded results';
-  $('data-source').title = state.demo ? 'Switch to recorded results' : 'Explore sample data';
-  $('chart-wrap').hidden = !runs.length; $('empty').hidden = !!runs.length;
+  $('data-source').textContent = state.demo ? 'Sample data' : feedStale ? 'Results · retrying' : 'Live results';
+  $('data-source').title = state.demo ? 'Switch to live results' : 'Refreshes every 5 seconds. Switch to sample data.';
+  const charted = runs.filter(run => run.points.length);
+  $('chart-wrap').hidden = !charted.length; $('empty').hidden = !!charted.length;
   $('accessible-data').hidden = !runs.length;
-  $('accessible-data').open = false;
-  $('empty-title').textContent = benchmark ? 'No runs for this version yet' : 'No results yet';
-  $('empty-description').textContent = benchmark ? 'Choose another game or benchmark version to explore its results. Different versions stay separate.' : 'Recorded runs will appear here when they include a benchmark version and verified progress.';
-  $('sample-button').hidden = state.demo;
+  $('accessible-data').open = !!runs.length && !charted.length;
+  $('empty-title').textContent = runs.length ? 'Action counts recovered' : benchmark ? 'No runs for this version yet' : 'No results yet';
+  $('empty-description').textContent = runs.length ? 'This legacy run has verified submitted action totals. Timed milestone progress and actions to finish are unavailable.' : benchmark ? 'Choose another game or benchmark version to explore its results. Different versions stay separate.' : 'Recorded runs will appear here when they include a benchmark version and verified progress.';
+  $('sample-button').hidden = state.demo || !!runs.length;
   $('sample-button').textContent = 'Explore sample runs';
   $('sample-button').onclick = () => load(true);
-  $('announcement').textContent = `${state.demo ? 'Sample data. ' : ''}${game?.label ?? 'No games'}, ${benchmark?.label ?? 'no versions'}, ${runs.length} runs.`;
+  $('announcement').textContent = `${state.demo ? 'Sample data. ' : ''}${game?.label ?? 'No games'}, ${benchmark?.label ?? 'no versions'}, ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}.`;
   $('results').setAttribute('aria-busy', 'false');
   $('data-rows').replaceChildren();
-  for (const run of runs) for (const point of run.points) {
+  for (const run of runs) for (const point of run.points.length ? run.points : [{ actions: run.actions, progress: null }]) {
     const row = document.createElement('tr');
-    for (const value of [run.label, run.date, point.actions.toLocaleString(), `${point.progress}%`]) row.append(Object.assign(document.createElement('td'), { textContent: value }));
+    const name = document.createElement('td'), button = document.createElement('button');
+    button.className = 'text-button'; button.textContent = run.label; button.onclick = () => showRun(run); name.append(button); row.append(name);
+    for (const value of [run.date, point.actions.toLocaleString(), point.progress === null ? 'Unavailable' : `${point.progress}%`]) row.append(Object.assign(document.createElement('td'), { textContent: value }));
     $('data-rows').append(row);
   }
-  chart.update(runs);
+  chart.update(charted);
   syncUrl();
 }
 async function load(demo) {
+  live.stop(); pendingData = null; feedStale = false;
   const revision = ++loadRevision;
   $('results').setAttribute('aria-busy', 'true');
   try {
     let data;
     if (demo) data = (await import('./sample-data.js')).sampleResults;
     else {
-      const response = await fetch('./results.json', { cache: 'no-store' });
-      if (!response.ok) throw new Error('Results could not be loaded.');
-      data = await response.json();
+      data = await fetchResults();
     }
     if (revision !== loadRevision) return;
     state.data = validateResults(data); state.demo = demo;
     render();
+    if (!demo) live.start();
   } catch {
     if (revision !== loadRevision) return;
     // Clear the previous chart rather than showing stale or mislabelled results.
     state.data = { schema_version: 1, games: [] }; state.demo = demo;
     render();
     $('empty-title').textContent = 'Results are unavailable';
-    $('empty-description').textContent = 'The results file could not be read or contains an invalid benchmark or milestone. Fix the export, then try again.';
+    $('empty-description').textContent = 'The local results feed could not be read. Check that the results server is available, then try again.';
     $('sample-button').hidden = false; $('sample-button').textContent = 'Try again';
     $('sample-button').onclick = () => load(demo);
     $('announcement').textContent = 'Results could not be loaded.';
+    if (!demo) live.start();
   }
 }
 function showRun(run) {
@@ -79,13 +111,18 @@ function showRun(run) {
   $('run-subtitle').textContent = `${game.label} · ${shortDate(run.date)} ${run.date.slice(0, 4)}${state.demo ? ' · Sample run' : ''}`;
   $('run-facts').replaceChildren();
   const facts = [
-    ['Benchmark version', benchmark.label], ['Outcome', run.completion_verified ? 'Verified completion' : run.outcome.replaceAll('_', ' ')],
-    ['Game progress', `${run.points.at(-1).progress}%`], ['Submitted actions', run.actions.toLocaleString()],
-    ['Actions to finish', actionsToFinish(run)?.toLocaleString() ?? 'Not completed'],
+    ...(run.finished_at ? [['Recorded through (UTC)', run.finished_at.replace('T', ' ').replace('Z', '')]] : []),
+    ['Benchmark version', benchmark.label], ['Outcome', run.completion_verified ? 'Verified completion' : run.task_succeeded ? 'Task succeeded; game unfinished' : run.outcome.replaceAll('_', ' ')],
+    ['Game progress', run.points.length ? `${run.points.at(-1).progress}%` : 'Unavailable'], ['Submitted actions', run.actions.toLocaleString()],
+    ['Actions to finish', actionsToFinish(run)?.toLocaleString() ?? (run.evidence_status === 'actions_only' ? 'Unavailable' : 'Not completed')],
+    ['AgentSCUMM version', run.agent_version ?? 'Unknown'], ['AgentSCUMM commit', run.agent_commit ?? 'Unknown'],
     ['Starting conditions', benchmark.contract.start], ['Track', benchmark.contract.track],
     ['Game edition', benchmark.contract.game_edition], ['Progress revision', benchmark.contract.progress_revision],
     ['Action definition', benchmark.contract.action_revision], ['Completion rule', benchmark.contract.completion_revision],
     ['Toolset revision', benchmark.contract.toolset_revision],
+    ...(run.recorded_outcome ? [['Recorded outcome', run.recorded_outcome.replaceAll('_', ' ')]] : []),
+    ...['scummbench_revision', 'mechanics_revision', 'runtime_revision'].filter(key => benchmark.contract[key])
+      .map(key => [key.replaceAll('_', ' '), benchmark.contract[key]]),
   ];
   for (const [name, value] of facts) $('run-facts').append(Object.assign(document.createElement('dt'), { textContent: name }), Object.assign(document.createElement('dd'), { textContent: value }));
   $('run-points').replaceChildren();
@@ -98,10 +135,24 @@ function showRun(run) {
 }
 $('game').addEventListener('change', () => { state.game = $('game').value; state.benchmark = null; render(); });
 $('benchmark').addEventListener('change', () => { state.benchmark = $('benchmark').value; render(); });
-$('data-source').addEventListener('click', () => load(!state.demo));
-$('about-button').addEventListener('click', () => $('about-dialog').showModal());
+$('data-source').addEventListener('click', () => load(feedStale ? false : !state.demo));
+$('about-button').addEventListener('click', () => {
+  const diagnostics = state.data.diagnostics;
+  const counts = Object.entries(diagnostics?.unavailable ?? {}).map(([name, count]) => `${count} ${name.replaceAll('_', ' ')}`);
+  $('feed-diagnostics').textContent = state.demo ? 'Sample data is illustrative and does not refresh.'
+    : `${diagnostics?.plotted ?? 0} charted ${diagnostics?.plotted === 1 ? 'run' : 'runs'}. ${diagnostics?.counts_only ?? 0} legacy runs with action counts only.${counts.length ? ` Not charted: ${counts.join('; ')}.` : ''} Live results refresh every 5 seconds. Legacy versions isolate runs whose comparison provenance is incomplete.`;
+  $('about-dialog').showModal();
+});
 $('recorded-button').addEventListener('click', () => { $('about-dialog').close(); load(false); });
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('click', event => { if (event.target === dialog) { const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close(); } });
 await load(state.demo);
 document.fonts.ready.then(() => chart.draw());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) live.refresh(); });
+document.addEventListener('focusout', () => queueMicrotask(() => {
+  if (pendingData && !state.demo && !document.activeElement?.matches('select')) {
+    const data = pendingData; pendingData = null; acceptUpdate(data);
+  }
+}));
+window.addEventListener('pagehide', () => live.stop());
+window.addEventListener('pageshow', event => { if (event.persisted && !state.demo) live.start({ immediate: true }); });

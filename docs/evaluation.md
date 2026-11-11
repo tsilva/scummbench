@@ -126,7 +126,10 @@ AgentSCUMM's finalizer exports and verifies its conversation archive, then calls
 re-verifies the source archive, owns the registration lock and private receipts,
 and updates its own `BENCHMARKS.md` idempotently by trajectory checksum. ScummBench owns the portable verifier and renderer and never imports an agent
 checkout during registration. Missing ScummBench fails without a local registration
-fallback. Archives and historical AgentSCUMM results are not migrated.
+fallback. Before updating the table, ScummBench retains a byte-identical, independently
+verified copy under ignored `runs/archives/<game>/<archive>/`. A verified re-export of the same trajectory retains both archive revisions.
+A different trajectory at the same destination fails instead of overwriting evidence. Source archives
+remain intact. Historical AgentSCUMM results now live in this repository.
 
 Registered interactive playthroughs retain declared assistance and are always
 development evidence. Registration neither grants official eligibility nor
@@ -139,3 +142,15 @@ default. `SCUMMBENCH_RUNS_DIR` selects an alternative private evidence directory
 including test-owned temporary storage. These journals are not conversation
 archives and never infer a game victory from a session closing. The normal play
 skill still requires ending evidence and deferred archive verification.
+
+New AgentSCUMM exports carry checksummed `agent-provenance.json`, recording the
+pre-play clean package version/commit and resume checkpoints. The portable verifier
+checks this identity independently of the mechanical MCP version. The separate
+AgentSCUMM version column remains Unknown for historical runs without that evidence.
+AgentSCUMM automatically prepares its version before requiring the user to commit;
+registration never changes or commits agent code.
+
+Stopped and paused conversation snapshots can be registered as unfinished evidence.
+Their actions and usage cover the archived conversation segment; resumed segments
+are not silently aggregated into whole-playthrough totals. Missing images, action
+coverage or native progress remain explicit gaps rather than inferred measurements.

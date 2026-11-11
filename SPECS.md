@@ -10,8 +10,11 @@ ScummBench never launches or imports AgentSCUMM code, including for archive
 registration. ScummWEB owns controls, captures and mechanical telemetry;
 ScummBench owns evaluation policy and result verification.
 Existing live sessions are preserved; new connections must expose mediation
-provenance. ScummBench owns future benchmark registration and its canonical
-BENCHMARKS.md. Existing AgentSCUMM records and conversation archives stay intact.
+provenance. ScummBench owns all benchmark registration and its canonical BENCHMARKS.md,
+including migrated historical AgentSCUMM records and verified private archive
+copies. Original conversation archives remain intact. Every new AgentSCUMM
+playthrough records its agent package version and clean starting commit, including
+resume revisions, separately from ScummWEB and benchmark contract versions.
 
 The global `scummbench` command supports `uv tool install --editable` from this
 checkout. It runs the live repository implementation, so subsequent source and
@@ -49,3 +52,8 @@ or benchmark versions stay separate. Verified ending evidence establishes
 completion; unfinished attempts have no actions-to-finish value. Sample data is
 explicitly labelled and remains separate from recorded results. See
 [the results explorer](docs/results-page.md) for the display export and controls.
+
+Recorded results refresh automatically from finished local runs and registered
+archive receipts. Missing progress is reported rather than inferred. Unknown or
+dirty comparison provenance isolates a run in a legacy version. Progress samples
+stay private to evaluation and results; they are never added to player observations.

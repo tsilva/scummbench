@@ -12,6 +12,7 @@ import re
 import statistics
 import subprocess
 from . import archive_usage as USAGE
+from . import archive_agent as AGENT
 from . import archive_context as CONTEXT
 from . import archive_pricing as PRICING
 
@@ -169,6 +170,7 @@ def verify_run(directory):
                 "Completed runs require 100 percent progress")
     verify_run_progress(stats)
     verify_progress_curve(stats)
+    AGENT.verify(directory, stats.get("agent"))
     if "total_actions" in stats or "total_action_sequences" in stats:
         for key, expected in (("total_actions", sum(stats["actions"].values())),
                               ("total_action_sequences", stats["action_sequences"]["count"])):

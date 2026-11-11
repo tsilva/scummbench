@@ -10,6 +10,7 @@ import { archiveContent } from './runner.js';
 import { gitRevision } from './backend.js';
 import { loadWandb } from './wandb.js';
 import { resolveBackbone } from './backbone.js';
+import { runtimeDescriptor, captureProgress } from './results-capture.js';
 
 // Interactive gateway: ScummWEB mechanics, with ScummBench-owned
 // evidence. It makes no controlled-task or success-rate claim for free play.
@@ -21,6 +22,9 @@ export async function serve(argv, { reporting } = {}) {
   const backbone = await resolveBackbone(values.scummweb);
   const sourceRevision = gitRevision(root), backboneRevision = gitRevision(backbone.directory);
   const args = separator < 0 ? [] : argv.slice(separator + 1);
+  const dataDirectoryIndex = args.indexOf('--data-dir');
+  const nativeStore = dataDirectoryIndex >= 0 ? path.resolve(args[dataDirectoryIndex + 1])
+    : path.join(backbone.directory, '.runs/agent-backbone/instances');
   if (args.includes('--import-only')) {
     const child = spawn(process.execPath, [backbone.server, ...args],
       { cwd: process.cwd(), env: { ...cleanEnv(), SCUMMBENCH_MANAGED: '1' }, stdio: 'inherit' });
@@ -59,7 +63,9 @@ export async function serve(argv, { reporting } = {}) {
     run = undefined; publisher = undefined;
     finishingRun = (async () => {
       await tail;
-      await writeFile(path.join(selected.directory, 'run.json'), JSON.stringify({ ...selected, status: 'stopped', reason,
+      const progress_capture = await captureProgress(selected.directory, selected.native_progress_source);
+      const { native_progress_source, ...manifest } = selected;
+      await writeFile(path.join(selected.directory, 'run.json'), JSON.stringify({ ...manifest, progress_capture, status: 'stopped', reason,
         finished_at: new Date().toISOString() }, null, 2) + '\n', { mode: 0o600 });
       await selectedPublisher?.finish({ elapsed_ms: Date.now() - Date.parse(selected.started_at),
         usage: selected.usage, status: 'stopped', reason });
@@ -120,6 +126,10 @@ export async function serve(argv, { reporting } = {}) {
         await write({ type: 'mcp_request', method: request.method, params: request.params });
         if (cancelled.has(request.id)) throw new Error('Request was cancelled before dispatch');
         result = await client.request(request.method, request.params, 60000, id => inFlight.set(request.id, id));
+        if (run && request.method === 'tools/call') {
+          const descriptor = runtimeDescriptor(result, run.game_id, nativeStore);
+          if (descriptor) { run.native_progress_source = descriptor; run.mechanics_session_id = descriptor.session_id; }
+        }
         if (request.method === 'tools/call') result = { isError: false, ...result };
         if (request.method === 'tools/call' && name === 'status' && !result.isError) {
           result = { ...result, content: result.content.map(block => {

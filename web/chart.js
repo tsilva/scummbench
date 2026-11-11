@@ -1,4 +1,4 @@
-import { stepVertices, shortDate } from './results-model.js';
+import { stepVertices, shortDate, actionsToFinish } from './results-model.js';
 
 const palette = ['#83c652', '#e5e2e1', '#a6b595', '#899caa', '#c2b597', '#9b91ad'];
 const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
@@ -6,7 +6,7 @@ const clamp = (value, low, high) => Math.max(low, Math.min(value, high));
 export function chartGeometry(width, height, runs) {
   const mobile = width < 600;
     const plot = { left: mobile ? 58 : 94, right: width - (mobile ? 18 : 52), top: mobile ? 88 : 38, bottom: height - 74 };
-  const maximum = Math.max(1, ...runs.map(run => run.actions));
+  const maximum = Math.max(1, ...runs.map(run => actionsToFinish(run) ?? run.actions));
   const rough = maximum / 3, magnitude = 10 ** Math.floor(Math.log10(rough));
   const unit = Math.max(1, [1, 2, 2.5, 5, 10].find(step => step * magnitude >= rough) * magnitude);
   const xMax = Math.max(unit, Math.ceil(maximum / unit) * unit);
@@ -35,7 +35,7 @@ export class ProgressChart {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'run-label'; button.style.color = palette[index % palette.length];
       const progress = run.points.at(-1).progress;
-      button.textContent = `${shortDate(run.date)} · ${run.completion_verified ? `${run.actions.toLocaleString()} actions` : `${progress}%`}`;
+      button.textContent = `${shortDate(run.date)} · ${run.completion_verified ? `${actionsToFinish(run).toLocaleString()} actions` : `${progress}%`}`;
       button.setAttribute('aria-label', `${run.label}, ${run.date}, ${progress}% progress, ${run.actions} submitted actions, ${run.completion_verified ? 'verified completion' : 'not completed'}. Inspect run.`);
       button.addEventListener('click', () => this.onSelect(run));
       button.addEventListener('pointerenter', () => this.highlight({ run, point: run.points.at(-1) }));
@@ -86,7 +86,7 @@ export class ProgressChart {
       ctx.beginPath();
       stepVertices(run).forEach((point, i) => { if (i) ctx.lineTo(x(point.actions), y(point.progress)); else ctx.moveTo(x(point.actions), y(point.progress)); });
       ctx.stroke();
-      const end = { actions: run.actions, progress: run.points.at(-1).progress };
+      const end = { actions: actionsToFinish(run) ?? run.actions, progress: run.points.at(-1).progress };
       ctx.beginPath(); ctx.arc(x(end.actions), y(end.progress), mobile ? 4.5 : 6.5, 0, Math.PI * 2); ctx.fill();
       if (this.active?.run === run) {
         const point = this.active.point;

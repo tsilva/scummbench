@@ -2,25 +2,45 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createResultsFeed } from '../src/results-feed.js';
 
 const args = process.argv.slice(2).filter(value => value !== '--');
-let port = 0, host = '127.0.0.1';
+let port = 0, host = '127.0.0.1', runsDirectory, registryDirectory;
 for (let index = 0; index < args.length; index++) {
   const flag = args[index], value = args[++index];
   if (flag === '--port' && (value === 'auto' || /^\d+$/.test(value ?? ''))) port = value === 'auto' ? 0 : Number(value);
   else if (flag === '--host' && ['127.0.0.1', 'localhost', '::1'].includes(value)) host = value;
+  else if (flag === '--runs' && value) runsDirectory = path.resolve(value);
+  else if (flag === '--registry' && value) registryDirectory = path.resolve(value);
   else throw new Error('Use --port auto (or a numeric port) and an optional loopback --host.');
 }
 if (!Number.isSafeInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port.');
 const root = fileURLToPath(new URL('../web/', import.meta.url));
+const resultsFeed = createResultsFeed({ runsDirectory, registryDirectory });
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf' };
 const server = createServer(async (request, response) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+  // The live feed contains local run metadata. A loopback bind alone does not
+  // prevent DNS rebinding or cross-origin requests from unrelated websites.
+  try {
+    const authority = new URL(`http://${request.headers.host}`);
+    const origin = request.headers.origin && new URL(request.headers.origin);
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(authority.hostname)
+      || (origin && (origin.protocol !== 'http:' || origin.host !== authority.host))) throw new Error('Untrusted origin');
+  } catch { response.writeHead(403); response.end('Forbidden'); return; }
   if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405); response.end(); return; }
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/api/results') {
+      try {
+        const content = JSON.stringify(await resultsFeed());
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.writeHead(200); response.end(request.method === 'HEAD' ? undefined : content);
+      } catch { response.writeHead(503, { 'Content-Type': 'application/json' }); response.end('{"error":"Results temporarily unavailable"}'); }
+      return;
+    }
     const file = path.resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
     if (!file.startsWith(root) || !mime[path.extname(file)]) { response.writeHead(404); response.end('Not found'); return; }
     const content = await readFile(file);

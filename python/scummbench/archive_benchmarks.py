@@ -34,9 +34,11 @@ FLAT_BENCHMARK_HEADER = PERCENTAGE_BENCHMARK_HEADER.replace("| Tokens |", "| Tot
 
 FLAT_BENCHMARK_SEPARATOR = "| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
 
-BENCHMARK_HEADER = FLAT_BENCHMARK_HEADER.replace(" Game |", "").rstrip() + " MCP version | MCP tools |"
+PRE_AGENT_BENCHMARK_HEADER = FLAT_BENCHMARK_HEADER.replace(" Game |", "").rstrip() + " MCP version | MCP tools |"
 
-BENCHMARK_SEPARATOR = FLAT_BENCHMARK_SEPARATOR.replace("--- | --- |", "--- |", 1) + " --- | --- |"
+PRE_AGENT_BENCHMARK_SEPARATOR = FLAT_BENCHMARK_SEPARATOR.replace("--- | --- |", "--- |", 1) + " --- | --- |"
+BENCHMARK_HEADER = PRE_AGENT_BENCHMARK_HEADER + " AgentSCUMM version |"
+BENCHMARK_SEPARATOR = PRE_AGENT_BENCHMARK_SEPARATOR + " --- |"
 
 GAME_SECTION = re.compile(r"## (.+)\n<!-- agentscumm:game:([a-z0-9-]+) -->\n")
 
@@ -185,6 +187,14 @@ def benchmark_mcp(stats):
     observed = sorted(name[len(prefix):] for name in stats.get("mcp_tool_calls", {}) if name.startswith(prefix))
     return version_text, "Startup unknown. Observed " + ", ".join(observed) if observed else "Unknown"
 
+def benchmark_agent(stats):
+    identity = stats.get("agent")
+    if not identity:
+        return "Unknown"
+    revisions = [identity, *identity.get("resume_checkpoints", [])]
+    return ", ".join(dict.fromkeys(revision["version"] + " @ " + revision["commit_id"][:7]
+                                  if revision.get("version") else "Unknown start" for revision in revisions))
+
 def benchmark_cells(stats):
     completed = EXPORT.USAGE.timestamp(stats["recorded_through"]).astimezone(timezone.utc)
     seconds = round(stats["wall_clock_seconds"])
@@ -196,7 +206,7 @@ def benchmark_cells(stats):
         f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}",
         *benchmark_actions(stats),
         f"{stats['tokens']['total_tokens']:,}",
-        input_tokens, output_tokens, completed.date().isoformat(), *benchmark_mcp(stats),
+        input_tokens, output_tokens, completed.date().isoformat(), *benchmark_mcp(stats), benchmark_agent(stats),
     ]
     # Keep the deduplication marker inside the row so Markdown renders one table.
     cells = [public_text(value) for value in cells]
@@ -286,7 +296,7 @@ def migrate_flat_table(text):
             games = {}
             for row in rows:
                 title = row.pop(1)
-                games.setdefault(title, []).append(row + ["Unknown", "Unknown"])
+                games.setdefault(title, []).append(row + ["Unknown", "Unknown", "Unknown"])
             tables = []
             for title, rows in games.items():
                 game_id = re.sub(r"[^a-z0-9]+", "-", html.unescape(title).lower()).strip("-")
@@ -297,6 +307,16 @@ def migrate_flat_table(text):
 
 def update_benchmark(text, stats, title):
     text = migrate_flat_table(upgrade_benchmark_table(text))
+    # An old backend MCP version does not establish the agent procedure version.
+    old_lines = text.splitlines(keepends=True)
+    for index, line in enumerate(old_lines):
+        if line.strip() == PRE_AGENT_BENCHMARK_HEADER:
+            end, rows = read_table(old_lines, index, PRE_AGENT_BENCHMARK_SEPARATOR, 13)
+            old_lines[index] = BENCHMARK_HEADER + "\n"
+            old_lines[index + 1] = BENCHMARK_SEPARATOR + "\n"
+            for offset, row in enumerate(rows, index + 2):
+                old_lines[offset] = benchmark_row(row + ["Unknown"])
+    text = "".join(old_lines)
     marker = benchmark_marker(stats)
     matches = text.count(marker)
     require(matches <= 1, "Duplicate benchmark identity; resolve before registration")
@@ -322,8 +342,9 @@ def update_benchmark(text, stats, title):
                 for index in (1, 5, 6, 8, 9, 10):
                     row[index] = new_row[index]
                 # Older manifests may omit provenance already verified from the trajectory.
-                for index in (11, 12):
-                    if row[index] == "Unknown" or new_row[12].startswith("Server · "):
+                for index in (11, 12, 13):
+                    if (row[index] == "Unknown" or (index == 13 and new_row[13] != "Unknown")
+                            or (index in (11, 12) and new_row[12].startswith("Server · ") and not row[12].startswith("Server · "))):
                         row[index] = new_row[index]
                 lines[heading:end] = [game_table(section[1], game_id, rows)]
                 return "".join(lines), False

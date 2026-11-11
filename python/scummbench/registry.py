@@ -7,12 +7,63 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import time
 
 from .cli import runtime_root
 from . import archive_benchmarks as adapter
+from .results_export import archive_display
+
+
+def file_inventory(directory: Path) -> dict:
+    """Fingerprint every portable file; never follow linked archive content."""
+    files = {}
+    for path in sorted(directory.rglob("*")):
+        adapter.require(not path.is_symlink(), "Linked archive content")
+        if path.is_file():
+            with path.open("rb") as stream:
+                files[path.relative_to(directory).as_posix()] = hashlib.file_digest(stream, "sha256").hexdigest()
+        else:
+            adapter.require(path.is_dir(), "Unsupported archive content")
+    return files
+
+
+def retain_archive(archive: Path, store: Path, stats: dict) -> Path:
+    """Keep an independently verified, byte-identical copy in the results owner."""
+    base = adapter.EXPORT.archive_root(store)
+    game = stats["game_id"]
+    adapter.require(adapter.re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", game), "Invalid archive game")
+    parent = adapter.EXPORT.safe_directory(base / "archives" / game)
+    target = parent / archive.name
+    before = file_inventory(archive)
+    if target.exists():
+        adapter.require(not target.is_symlink(), "Linked canonical archive")
+        if file_inventory(target) == before:
+            return target
+        previous = adapter.EXPORT.verify_run(target)
+        adapter.require(previous["trajectory"]["sha256"] == stats["trajectory"]["sha256"],
+                        "Different archive already occupies the canonical destination")
+        # Re-exporting one trajectory can recover previously missing telemetry.
+        # Retain the previous archive rather than overwriting its evidence.
+        revision = hashlib.sha256((archive / "run.json").read_bytes()).hexdigest()
+        target = parent / (archive.name + "-" + revision[:16])
+        if target.exists():
+            adapter.require(not target.is_symlink() and file_inventory(target) == before,
+                            "Different archive already occupies the canonical revision")
+            return target
+    staging = Path(tempfile.mkdtemp(prefix=".retain-", dir=parent))
+    try:
+        shutil.copytree(archive, staging, dirs_exist_ok=True)
+        adapter.require(file_inventory(staging) == before == file_inventory(archive),
+                        "Archive changed while copying")
+        adapter.EXPORT.verify_run(staging)
+        staging.rename(target)
+        return target
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
 
 
 def register(archive: Path, *, source_repo: Path, store: Path,
@@ -24,6 +75,7 @@ def register(archive: Path, *, source_repo: Path, store: Path,
     stats = adapter.EXPORT.verify_run(archive)
     adapter.require(stats["status"] in ("completed", "in_progress", "stopped", "blocked"), "Invalid archived status")
     adapter.require(stats["status"] != "completed" or stats.get("completion_note"), "Missing ending evidence")
+    archive = retain_archive(archive, store, stats)
     directory = adapter.private_directory(store, store / ".internal/archive-registry")
     target = store / "BENCHMARKS.md"
     adapter.require(not target.is_symlink(), "Linked benchmark document")
@@ -57,7 +109,8 @@ def register(archive: Path, *, source_repo: Path, store: Path,
         receipt = directory / f"{checksum}.json"
         adapter.atomic_json(receipt, {"schema_version": 1, "results_owner": "scummbench", "archive": str(archive),
             "trajectory_sha256": checksum, "archive_manifest_sha256": hashlib.sha256((archive / "run.json").read_bytes()).hexdigest(),
-            "game_id": stats["game_id"], "status": stats["status"], "official_eligible": False})
+            "game_id": stats["game_id"], "status": stats["status"], "official_eligible": False,
+            **archive_display(stats)})
         return {"benchmark_added": added, "results_owner": "scummbench", "benchmark_path": str(target), "receipt": str(receipt)}
     finally:
         lock.unlink()

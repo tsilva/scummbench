@@ -1,81 +1,136 @@
 # Results explorer
 
-The results page plots verified game progress against submitted actions. Each
-line is an individual attempt, labelled with its date. Horizontal segments hold
-the previous high-water progress until the next verified milestone; they do not
-interpolate progress or project an unfinished run to completion. Reaching 100%
-at a smaller action count indicates fewer actions for that particular completion,
-not greater reliability across repeated attempts.
+The page plots verified game progress against submitted actions. Each line is
+one attempt, labelled with its date. Steps hold the previous verified high-water
+progress until the next observed milestone. They do not interpolate progress or
+project an unfinished attempt to completion.
 
 ```sh
 pnpm dev -- --port auto
 ```
 
-Open the URL printed by the preview server. The default page reads
-`web/results.json`, which initially has no registered data. The printed sample
-URL uses `?demo=1` and clearly marks its entirely synthetic runs as sample data.
-The source control beneath the version selector switches between them. Sample
-full-game results do not imply that a full-game evaluation has been validated.
+Open the printed results URL. The page reads the local `/api/results` feed and
+refreshes every five seconds while visible. Returning to the page refreshes it
+immediately. Requests have a ten-second deadline, do not overlap, and stop when
+switching to sample data. An outage keeps the last successful chart visible and
+marks it as retrying; an initial outage shows an error. The selected game and
+benchmark version stay selected when other runs arrive.
 
-The page uses native browser APIs, a canvas chart and a loopback-only Node
-server. No dependencies, credentials, game assets or active game sessions are
-required. Only the `web/` directory is served; private run directories are never
-exposed. Do not use the preview server as a public production server.
+The printed `?demo=1` URL uses entirely synthetic sample runs. It never mixes
+sample and recorded data. The source control beneath the version selector
+switches between them. `web/results.json` remains an empty display-format example;
+it is not the live data source.
 
-## Display export
+## Local sources
 
-`web/results.json` is an explicitly curated, public-safe display export. It is
-not a raw run directory, automatic registry importer or independent verifier.
-Keep transcripts, local paths, evaluator predicates and private receipts out of
-it. Review any real export before publication. An unsupported or invalid file
-shows an error instead of silently falling back to sample data.
+The reader discovers finished runs under the repository's ignored `runs/` and,
+when configured, `SCUMMBENCH_RUNS_DIR`. It also reads canonical registration
+receipts in `.internal/archive-registry/`. Alternative source directories can be
+selected explicitly:
 
-The schema is version 1 and contains a `games` array. Each game has an `id`,
-`label`, and `benchmarks` array. Each benchmark contains:
+```sh
+pnpm dev -- --port auto --runs /absolute/run-store --registry /absolute/receipt-store
+```
 
-- `id`: stable comparison identity within the game, not a Git commit alone.
-- `label` and `context`: display name and the category/starting conditions.
-- `contract`: `game_edition`, `start`, `track`, `progress_revision`,
-  `action_revision`, `completion_revision`, and `toolset_revision` identifiers.
-  Each identifier must resolve to the exact definition used for that version;
-  budgets and other conditions belong in that version's frozen definition.
-- `runs`: individual attempts with `id`, `label`, ISO `date` (`YYYY-MM-DD`),
-  `actions`, `outcome`, `completion_verified`, and `points`.
+`--runs` replaces the default run-store search. The server serves static assets
+only from `web/`, plus the read-only JSON endpoint. Private trajectories, native
+logs, screenshots, paths and evaluator predicates are never served. It binds to
+loopback, rejects unrelated Host/Origin headers, and needs no service credentials
+or third-party dependencies. It is a local results server, not public production
+hosting. No W&B request or upload is part of this feed.
 
-Each point has an integer submitted `actions` count and a `progress` percentage,
-plus an optional public-safe `milestone` label. Samples must be ordered by action
-count, within the run's total, and report monotonically nondecreasing verified
-high-water progress. Export the first-observed high-water samples; do not turn
-estimates, raw percentages under a different rubric, or restored-state
-regressions into newly earned progress. The chart does not invent a zero
-baseline if one was not recorded. It extends the final plateau to the known
-total actions for unfinished attempts.
+- Fixed-task attempts use ScummBench's existing offline verifier. Native progress
+  samples in `evaluation.jsonl` are joined to `action_submission` timestamps.
+  Task success does not imply full-game completion.
+- New interactive gateway processes retain a private `progress.jsonl` projection
+  when a session finishes. It is copied from that session's native ScummWEB log,
+  with a checksum in the final run manifest. The projection contains timestamps,
+  map revision, milestone counts, percentages and native win flags. It excludes
+  native variable banks and solution labels. It does not change player MCP
+  observations or launch another process.
+- New archive registrations store a public-safe chart projection in their private
+  canonical receipt, after ScummBench verifies the portable archive. This uses
+  ScummBench-owned Python code, never an agent checkout. Existing receipts without
+  a projection need normal re-registration before they can contribute a curve.
 
-`outcome` is `completed`, `stopped`, `budget_exhausted`, `infrastructure_error`,
-or `in_progress`. A completed attempt must have independent ending verification,
-`completion_verified: true`, and a final 100% point at its final action count.
-An unfinished attempt cannot report 100%; rounding a rubric to 100 is not ending
-verification. Actions to finish remain unavailable for unfinished attempts.
-Submitted records can include waits and screenshots, according to the frozen
-action definition. Submission accounting is not low-level delivered-input timing.
+Already-running gameplay processes retain their loaded implementation. They are
+not restarted or modified to add capture. Verified portable archives without milestone evidence show submitted action totals
+with progress and actions-to-finish explicitly unavailable. They have no chart line.
+A declared completed status never supplies a fabricated 100% endpoint. The reader never repairs or rewrites a source run.
 
-See `web/sample-data.js` for synthetic examples of this shape. The samples have
-separate benchmark versions and an empty second game for interaction testing.
-They are intentionally separate from the recorded export.
+About reports how many sources were discovered, charted, still running, missing
+progress or invalid. One bad or partially written run does not hide other valid
+runs. Native progress changes across map revisions within a run, incompatible
+counts, mismatched sessions and unverified endings are withheld. No percentage
+is inferred from an agent's completion claim or a conversation ending.
 
-## Comparisons and interaction
+## Benchmark identity
 
-Only runs nested under the selected game **and** benchmark version are drawn.
-Changing versions replaces every line, label, detail and accessible table. There
-is no cross-version trend, automatic compatibility inference or historical
-rescoring. The selected data source, game and version are encoded in the URL.
+Each version has a content-derived identity over the applicable task and budgets,
+starting state, track, observation/control contract, ScummBench and mechanics
+revisions, declared runtime and verified edition, progress-map revision and action
+and completion definitions. Component changes stay separate. Player labels and
+model configuration are not used to merge incompatible benchmark conditions.
 
-Point at a milestone to inspect its action count and progress. Click a point or
-dated endpoint label to inspect the run, outcome and version contract. Endpoint
-buttons are keyboard-accessible. A collapsible data table provides every plotted
-milestone without requiring canvas interpretation. About explains the axes and
-measurement limitations. The page supports narrow viewports and reduced motion.
+Missing edition/runtime provenance, unknown starting conditions or a dirty/unknown
+implementation produces a **Legacy** version isolated to that run. Matching HEAD
+commits or progress-map hashes alone do not establish comparability. Legacy
+archives are also isolated. Version IDs are stable for the recorded evidence;
+there is no sequential version number to renumber when a late result arrives.
 
-Calendar dates identify the runs; the horizontal axis always measures actions.
-These individual trajectories are not a success-rate estimate, a best-of-many
-record curve or a statistical assertion that newer players improved.
+Only the selected game and version are drawn. Switching versions replaces every
+line, label, detail and accessible table. New incompatible versions appear in the
+selector without switching away from the version being inspected. No cross-version
+trend, compatibility inference or retrospective rescoring is performed.
+
+## Metric semantics
+
+Actions count submitted records, including waits and explicit screenshots under
+the recorded action definition. Entire batches are charged at their submission
+timestamp. These timestamps are not exact low-level input-delivery times.
+
+100% requires a native win flag. A completed short task or a rounded 100%
+checklist cannot establish that the game ended. **Actions to finish** uses the
+submission count at the first verified native ending, so later inputs do not
+inflate it. The recorded total actions and original outcome remain available in
+run details. Unfinished attempts have no actions-to-finish value. Archive curves
+without a timestamped native ending cannot supply a completion cost.
+
+Calendar dates identify runs; the horizontal axis always measures actions.
+Individual trajectories do not establish completion reliability, statistical
+improvement or official benchmark eligibility. A smaller completion cost applies
+to that successful attempt; it is not a success-rate estimate.
+
+## Display schema and interaction
+
+The API uses display schema version 1 with `games`, each containing `benchmarks`
+and their individual `runs`. Benchmark contracts expose the game edition, start,
+track, progress revision, action definition, completion rule and toolset revision.
+Available component commit IDs appear in run details. The response also includes
+safe diagnostic counts and a deterministic `revision`; unchanged responses do not
+rebuild the chart or disturb interaction.
+
+Each run has an ID, label, date, total `actions`, `outcome`, `completion_verified`
+and ordered `points` of `{ actions, progress }`. Optional `completion_actions`
+records the native ending boundary separately from total actions. `finished_at`
+retains the UTC cutoff for ordering attempts on the same day. Optional
+`recorded_outcome` preserves the source result independently of native game win.
+
+Samples must have nondecreasing action counts and verified high-water progress,
+within the attempt's totals and time window. No zero baseline is invented if one
+was not recorded. An unfinished curve extends its last verified high-water plateau
+to its known action total. Completed curves stop at their native ending.
+
+Point at a milestone to inspect its action count and progress. Click a milestone
+or dated endpoint to inspect the run and version contract. Endpoint buttons are
+keyboard-accessible. A collapsible chart-data table provides every plotted sample.
+The page supports narrow viewports and reduced motion. Native records and local
+checksums support auditing; they are not cryptographic attestation against a
+hostile same-user process.
+
+Historical archives are retained in ignored `runs/archives/` by canonical
+registration, with their verified projections in private registry receipts. Each
+is isolated as a legacy benchmark version because frozen comparison conditions
+are missing. Agent package version and commit appear in run details when recorded;
+they do not determine the benchmark version. Re-registering the same unchanged
+archive is idempotent.

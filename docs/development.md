@@ -34,9 +34,11 @@ success before publication.
 
 ## Results page
 
-The dependency-free [results explorer](results-page.md) has a local preview via
-`pnpm dev -- --port auto`. Its public display export is separate from private
-run evidence and includes explicitly labelled synthetic examples for preview.
+The dependency-free [results explorer](results-page.md) runs via
+`pnpm dev -- --port auto`. It reads a local, read-only feed of finished run
+evidence and registered archive projections, refreshing automatically. The feed
+exposes only display fields; raw evidence stays private. Explicitly labelled
+synthetic examples remain available separately for preview.
 
 ## Editable global command
 

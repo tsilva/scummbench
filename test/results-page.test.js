@@ -36,6 +36,17 @@ test('unfinished action totals never become actions to finish', () => {
   assert.equal(actionsToFinish(runs[2]), null);
 });
 
+test('counts-only legacy evidence never invents milestone geometry or completion', () => {
+  const data = fixture(), run = data.games[0].benchmarks[0].runs[0];
+  run.evidence_status = 'actions_only'; run.points = []; run.outcome = 'stopped';
+  run.completion_verified = false; run.completion_actions = null;
+  validateResults(data);
+  assert.deepEqual(stepVertices(run), []);
+  assert.equal(actionsToFinish(run), null);
+  run.completion_verified = true;
+  assert.throws(() => validateResults(data));
+});
+
 test('reject mixed or missing version contracts, duplicate IDs and malformed dates', () => {
   for (const change of [
     data => { delete data.games[0].benchmarks[0].contract.progress_revision; },

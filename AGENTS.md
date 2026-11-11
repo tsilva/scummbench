@@ -10,8 +10,8 @@ Agents own puzzle solving and memory. AgentBench is not a dependency.
 All new AgentSCUMM gameplay must use ScummBench. Its public launcher delegates
 to the MCP gateway, which uses ScummWEB's agent backbone directly. Require mediation
 provenance for ordinary gameplay and never add a direct-control fallback.
-ScummBench owns future benchmark registration and BENCHMARKS.md. Preserve
-historical AgentSCUMM rows and source conversation archives in place.
+ScummBench owns future benchmark registration and BENCHMARKS.md. Keep historical AgentSCUMM rows in this repository and retain verified private
+archive copies. Preserve original source conversation archives.
 
 Read SPECS.md and the relevant docs before substantive changes. Work on the
 current branch. Preserve the dependency-free Node.js implementation unless a

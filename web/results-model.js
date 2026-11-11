@@ -1,4 +1,4 @@
-// A curated display export, not a replacement for native result verification.
+// Public-safe display schema; source verification stays in the local reader.
 export function validateResults(data) {
   const require = (ok, message) => { if (!ok) throw new Error(message); };
   const text = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 240;
@@ -25,8 +25,12 @@ export function validateResults(data) {
           && !Number.isNaN(Date.parse(run.date)) && new Date(run.date).toISOString().slice(0, 10) === run.date, 'Invalid run date.');
         require(['completed', 'stopped', 'budget_exhausted', 'infrastructure_error', 'in_progress'].includes(run.outcome), 'Invalid run outcome.');
         require(typeof run.completion_verified === 'boolean', 'Missing completion verification.');
+        if (run.finished_at !== undefined) require(typeof run.finished_at === 'string'
+          && !Number.isNaN(Date.parse(run.finished_at)) && new Date(run.finished_at).toISOString().slice(0, 10) === run.date, 'Invalid finish timestamp.');
         require(Number.isSafeInteger(run.actions) && run.actions >= 0, 'Invalid action count.');
-        require(Array.isArray(run.points) && run.points.length > 0, 'No verified milestone samples.');
+        const countsOnly = run.evidence_status === 'actions_only';
+        require(Array.isArray(run.points) && (countsOnly ? run.points.length === 0 : run.points.length > 0), 'No verified milestone samples.');
+        require(!countsOnly || (!run.completion_verified && run.completion_actions == null), 'Counts alone cannot establish completion.');
         let actions = -1, progress = -1;
         for (const point of run.points) {
           require(Number.isSafeInteger(point.actions) && point.actions >= 0 && point.actions >= actions
@@ -38,7 +42,10 @@ export function validateResults(data) {
         }
         require((run.outcome === 'completed') === run.completion_verified, 'Completion outcome needs independent verification.');
         require((progress === 100) === run.completion_verified, '100% is reserved for verified completion.');
-        require(!run.completion_verified || actions === run.actions, 'Completed run must stop at its verified ending.');
+        const finish = run.completion_actions ?? run.actions;
+        require(run.completion_actions == null || run.completion_verified, 'Unfinished runs cannot claim actions to finish.');
+        require(!run.completion_verified || (Number.isSafeInteger(finish) && finish >= 0 && finish <= run.actions && actions === finish),
+          'Completed run must stop at its verified ending.');
       }
     }
   }
@@ -46,23 +53,27 @@ export function validateResults(data) {
 }
 
 export function selectBenchmark(data, gameId, benchmarkId) {
-  const game = data.games.find(item => item.id === gameId) ?? data.games[0];
-  const benchmark = game?.benchmarks.find(item => item.id === benchmarkId) ?? game?.benchmarks[0];
-  return { game, benchmark, runs: [...(benchmark?.runs ?? [])].sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)) };
+  const useful = benchmark => benchmark.runs.some(run => run.points.some(point => point.progress > 0));
+  const game = data.games.find(item => item.id === gameId)
+    ?? data.games.find(item => item.benchmarks.some(useful)) ?? data.games[0];
+  const benchmark = game?.benchmarks.find(item => item.id === benchmarkId)
+    ?? game?.benchmarks.find(useful) ?? game?.benchmarks[0];
+  return { game, benchmark, runs: [...(benchmark?.runs ?? [])].sort((a, b) => (b.finished_at ?? b.date).localeCompare(a.finished_at ?? a.date) || a.id.localeCompare(b.id)) };
 }
 
 export function stepVertices(run) {
   const vertices = [];
+  if (!run.points.length) return vertices;
   for (const point of run.points) {
     if (vertices.length) vertices.push({ actions: point.actions, progress: vertices.at(-1).progress });
     vertices.push({ actions: point.actions, progress: point.progress });
   }
-  if (vertices.at(-1).actions < run.actions) vertices.push({ actions: run.actions, progress: vertices.at(-1).progress });
+  if (!run.completion_verified && vertices.at(-1).actions < run.actions) vertices.push({ actions: run.actions, progress: vertices.at(-1).progress });
   return vertices;
 }
 
 export function actionsToFinish(run) {
-  return run.completion_verified ? run.actions : null;
+  return run.completion_verified ? run.completion_actions ?? run.actions : null;
 }
 
 export const shortDate = date => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(date));
