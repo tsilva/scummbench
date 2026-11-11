@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "profiles": [],
+  "sources": [
+    {
+      "path": "image-assets/sources/logo-source.png",
+      "sha256": "2e730fde59a10c2b50a10b1a01bae4399a0231b8445113f927b8882cd114a6e8",
+      "evidence": "Native Codex ImageGen output; original PNG bytes preserved. Exact model and snapshot were not exposed."
+    },
+    {
+      "path": "image-assets/sources/icon-source.png",
+      "sha256": "529adf86fe5cb4ed001aab4642c3d97e8655f1239b287282e682b9ef8911c519",
+      "evidence": "Native Codex ImageGen output; original PNG bytes preserved. Exact model and snapshot were not exposed."
+    },
+    {
+      "path": "image-assets/sources/social-source.png",
+      "sha256": "bd8a5b88c042d568d8615f27a97622280c052c337300a903f9fc7decf36bd4b8",
+      "evidence": "Native Codex ImageGen output; original PNG bytes preserved. Exact model and snapshot were not exposed."
+    }
+  ],
+  "exports": [
+    {
+      "role": "brand-logo",
+      "path": "image-assets/logo/logo-1024.png",
+      "sha256": "9262717102d90bfe683642f3bda7cfc2fd864e5d66141246e7721e54a06a34be",
+      "source": "image-assets/sources/logo-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/icon/icon-1024.png",
+      "sha256": "6a8afb029252d576d17a687fa3f9b614fb20ee543e1f25df2de8a3e7ed393f8a",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "readme-logo",
+      "path": "logo.png",
+      "sha256": "7702f6c43339436fc43ddc8811bb50b09fca2f3ed392a6c546fed44116805445",
+      "source": "image-assets/sources/logo-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/favicon/favicon-16.png",
+      "sha256": "b25ce325090541a538f713ffb6408d30ba4f75077087524f6ba8c37545da3640",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/favicon/favicon-32.png",
+      "sha256": "c6d9de4ee811681000c9cd5c1278955eb75702395477f316317c62c98ea5d58a",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/favicon/favicon-48.png",
+      "sha256": "69f2072544bd9ff0d40a1521c12a2e334a453f5bd4c7970376f4adea52c28768",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "favicon",
+      "path": "image-assets/web-seo/favicon/favicon.ico",
+      "sha256": "3a40f014b63226a7826026e7ebf0ddcc64baea71a237f7fa352426a9c628165d",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/apple-touch-icon.png",
+      "sha256": "b2a55b9621e4c542fc429ffeed001d23392de0ac428cbf65f382a25eb73752a7",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/android-chrome-192.png",
+      "sha256": "0c229f3b8aeb70afc6d05c4260df36fd472f6224a429976a59d708cbe47595af",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "brand-icon",
+      "path": "image-assets/web-seo/android-chrome-512.png",
+      "sha256": "bac961b2f722fcc8ecb2eda39084c0ca90a72c5b27a6f2f38eed1cfdf19e604b",
+      "source": "image-assets/sources/icon-source.png"
+    },
+    {
+      "role": "social-preview",
+      "path": "image-assets/web-seo/og-image-1200x630.png",
+      "sha256": "a4f3397a17d2c9f7d8be17b659ded0e6c8d8df9bcbb9d956feb659487ca723b3",
+      "source": "image-assets/sources/social-source.png"
+    }
+  ],
+  "derivation": {
+    "logo_and_icon": "Retain the central connected alpha component at threshold 128 with a 2 px fringe; preserve its original alpha, trim, then add a 24 px transparent margin before standard size exports.",
+    "readme_logo": "Fit trimmed logo within 960 x 960, then add 24 px transparent padding on each side.",
+    "other_exports": "Maintained create-image-assets derivation script, web-seo profile; wide source fitted to 1200 x 630."
+  }
+}

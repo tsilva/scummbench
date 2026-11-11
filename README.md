@@ -1,4 +1,6 @@
 <p align="center">
+  <img src="logo.png" alt="ScummBench cursor detective reviewing an evaluation clipboard" width="256" />
+  <br />
   <!-- repo-tagline:start -->
   <strong>🧭 Evaluate agents through adventure games 🕹️</strong>
   <!-- repo-tagline:end -->
@@ -95,4 +97,4 @@ agent; all v1 results explicitly have `official_eligible: false`.
 
 Code distribution licensing has not been selected. Game assets retain their
 own terms and are not included; deployment availability is not a redistribution
-permission. Branding artwork is not yet included.
+permission. Branding sources and export records are in [image-assets](image-assets/).
