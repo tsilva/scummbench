@@ -143,29 +143,59 @@ image references, missing native progress and unavailable action alignment.
 
 ## Public website
 
-The published explorer is at [scummbench.tsilva.eu](https://scummbench.tsilva.eu).
-It serves a static, public-safe snapshot, labelled **Published results** with its
-export timestamp in About. It checks for newly published snapshots every five
-seconds. A local run finishing does not change an already deployed snapshot.
+The explorer at [scummbench.tsilva.eu](https://scummbench.tsilva.eu) reads a public
+Blob results document through its read-only `/api/results` function. Finished
+fixed-task runs, interactive sessions and canonical archive registrations wake the
+publisher after their local evidence is finalized. A per-user retry job catches
+missed wakeups, offline failures and already-running sessions once per minute
+while the machine is awake. No source commit or page deployment is required for
+new results. The page polls every five seconds; storage caches may take up to a
+minute to expose a completed publication.
 
-Canonical archive registration automatically refreshes `web/results.json` when
-running in this checkout. To regenerate it explicitly from the verified local
-registration receipts:
+Publication uses the same verified display projection as the local explorer.
+Archive manifest hashes are checked again. Private trajectories, screenshots,
+paths, narratives and evaluator state never enter the outbox. Updates merge by
+game, benchmark identity and run ID. Conflicting contracts cannot share a version.
+Conditional Blob writes use ETags and retry conflicts, preventing a concurrent
+publisher from silently deleting another publisher's results. Unknown metrics
+stay null and legacy versions remain isolated.
 
-```sh
-pnpm results:export
-pnpm build
+The public reader needs no write credential. During an outage it returns an error
+and the browser retains its last successful data. A missing initial object uses
+the labelled bootstrap snapshot. About reports the last publication time.
+
+### Publisher setup and operation
+
+`local/results-publication.json` is owner-only, ignored metadata with this shape:
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "launcher": "scripts/results-agent-vault.py",
+  "url": "https://STORE.public.blob.vercel-storage.com/results/current.json"
+}
 ```
 
-The export checks registered manifest hashes and selects only public display
-fields. Unknown metrics remain null and legacy version identities remain separate.
-Raw archives, screenshots, paths, narratives and private receipts are excluded.
-Only the fixed public asset allowlist is copied into `dist/`; Vercel rewrites
-`/api/results` to that snapshot. `build-info.json` identifies the source commit
-and results revision. Builds reject linked assets or unexpected output files.
+Use the dedicated, reviewed Infisical results profile described in `AGENTS.md`.
+Its fixed client runs inside an OS sandbox with a non-secret placeholder and a
+short-lived Agent Vault session. The source key stays out of the client. Source
+renewal and protected code-hash updates are trusted administration; ordinary
+startup never fetches source credentials or falls back to another route.
 
-Commit the updated snapshot to publish new measurements. CI validates the schema,
-build and synthetic verifier tests. The prepared [Production delivery workflow](production-delivery.md)
-requires a project-scoped `VERCEL_TOKEN` in GitHub's Production environment before
-it can deploy after successful exact-commit CI. No application secrets are needed.
-Private run storage is never uploaded to the hosting provider.
+After the route has passed fake-key and real publication checks, install retries:
+
+```sh
+python3 scripts/install-results-publisher.py --install
+```
+
+To retry immediately, run `node scripts/results-sync.js --once`. Private outbox,
+success receipts and pending status are in `.internal/publication/`. Failed
+publication cannot alter an outcome or discard the outbox. Unchanged inputs do
+not upload again. Inspect `status.json` and `receipt.json` for delivery state.
+
+The checked-in `web/results.json` remains a bootstrap snapshot. `pnpm results:export`
+can regenerate it explicitly, and `pnpm build` validates it while copying only
+public assets into `dist/`. Runtime public data is independent of these assets.
+The [Production delivery workflow](production-delivery.md) governs code deployment;
+it is separate from automatic result publication.

@@ -56,3 +56,36 @@ The service permits only POST to `api.wandb.ai:443`, with path prefixes `/graphq
 and `/files/tsilva/scummbench-queen`. GraphQL path access does not enforce operation
 or project permissions. Publishing uses canonical ScummVM IDs (`queen` here);
 other projects need a reviewed route update. Preserve outbound draft approval.
+
+## Automatic public results
+
+Finished verified results publish to the dedicated public Vercel Blob store
+`scummbench-results-production` (`store_Pszke17tmuEHGEyB`), independently of Git
+commits and code deployments. Publish only the display projection, preserve
+benchmark identities and explicit missing metrics, and retain local evidence
+when publication fails. Never upload raw archives or evaluator state.
+
+The dedicated results route is separate from W&B. Its reviewed Secret Manager
+source is `https://app.infisical.com`, project
+`cba79865-b229-4181-909b-0da11a052799`, environment `prod`, folder
+`/scummbench-results`, key `BLOB_READ_WRITE_TOKEN`. A one-time user-approved trusted transfer imports this store credential from
+only the ScummBench Production environment. Infisical is the ongoing source;
+ordinary startup never copies credentials. Preserve Require Separate Values and keep
+Preview/Development disconnected from the Production store credential.
+
+`scripts/results-agent-vault.py` validates the owner-only protected profile at
+`~/.config/infisical/scummbench-results/route.json`, then starts only the fixed
+uploader inside the macOS sandbox with the dedicated `local-scummbench-results`
+bundle and a five-minute, automatically revoked session. The client receives
+only `scummbench_results_placeholder`. The sandbox permits the reviewed loopback
+proxy, public projection files and private publication state; it denies direct
+networking and unrelated home-directory reads. This child sandbox does not
+isolate its full-access parent. No global launcher or CA trust changes are made.
+
+The broker permits GET/PUT only on `vercel.com:443` under `/api/blob` and
+credential-free GET/HEAD only on the dedicated store's `/results/current.json`.
+The store token scopes writes to that store. Source copying, rotation and
+protected client-hash updates are explicit trusted administration, never an
+ordinary startup hook. Missing/invalid profiles fail with no other credential
+route. Require fake-key, denied-host and sandbox checks before real publication.
+See `docs/results-page.md` for automatic retries and delivery receipts.

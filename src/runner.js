@@ -7,6 +7,7 @@ import path from 'node:path';
 import { LineProcess, ProtocolError, TimeoutError } from './process.js';
 import { digest, visibleTask, validateDecision, requireThat, root, json, validate, loadTask } from './contracts.js';
 import { ScummWebBackend, gradeReceipt, gitRevision } from './backend.js';
+import { requestResultsPublication } from './results-publication.js';
 
 class Outcome extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
@@ -202,6 +203,7 @@ export async function runAttempt({ loadedTask, backendConfig, provenance, agentC
   // Network draining happens after the authoritative result and measured run
   // duration are fixed. Publication failure cannot change the grade.
   await publisher?.finish({ elapsed_ms: manifest.elapsed_ms, usage, status: manifest.status, reason: manifest.reason });
+  await requestResultsPublication();
   return { directory, result: manifest };
 }
 

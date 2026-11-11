@@ -156,7 +156,7 @@ export async function interactiveResult(directory) {
 }
 
 export function createResultsFeed({ runsDirectory, registryDirectory = path.join(root, '.internal/archive-registry'),
-  readFixed = fixedResult } = {}) {
+  readFixed = fixedResult, verifyArchiveManifests = false, archiveDirectory = path.join(root, 'runs/archives') } = {}) {
   const stores = runsDirectory ? [path.resolve(runsDirectory)] : [...new Set([path.join(root, 'runs'),
     ...(process.env.SCUMMBENCH_RUNS_DIR ? [path.resolve(process.env.SCUMMBENCH_RUNS_DIR)] : [])])];
   let pending;
@@ -197,6 +197,14 @@ export function createResultsFeed({ runsDirectory, registryDirectory = path.join
       try {
         const receipt = await json(path.join(registryDirectory, entry.name));
         if (receipt.results_owner !== 'scummbench' || receipt.trajectory_sha256 !== entry.name.slice(0, -5)) throw new Error('invalid_evidence');
+        if (verifyArchiveManifests) {
+          const archive = path.resolve(receipt.archive ?? '');
+          if (!archive.startsWith(path.resolve(archiveDirectory) + path.sep) || !HASH.test(receipt.archive_manifest_sha256 ?? '')) throw new Error('invalid_evidence');
+          for (let item = archive; item !== path.dirname(item); item = path.dirname(item)) {
+            if ((await lstat(item)).isSymbolicLink()) throw new Error('invalid_evidence');
+          }
+          if (digest(await read(path.join(archive, 'run.json'))) !== receipt.archive_manifest_sha256) throw new Error('invalid_evidence');
+        }
         if (!receipt.display_result) throw new Error(receipt.display_unavailable_reason ?? 'missing_progress');
         const raw = receipt.display_result;
         const item = { source: { id: raw.source?.id, game: raw.source?.game }, version: {

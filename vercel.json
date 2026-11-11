@@ -4,9 +4,24 @@
   "buildCommand": "pnpm build",
   "installCommand": "",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/api/results", "destination": "/results.json" }],
   "headers": [
-    { "source": "/(.*)", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] },
-    { "source": "/api/results", "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }] }
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/api/results",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, max-age=0, must-revalidate"
+        }
+      ]
+    }
   ]
 }

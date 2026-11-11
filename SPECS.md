@@ -65,6 +65,9 @@ alignment have no fabricated chart trajectory or actions-to-finish value.
 
 
 The public explorer is served at scummbench.tsilva.eu from a verified,
-public-safe registration snapshot. Its publication timestamp is explicit;
-new public measurements require snapshot publication. The local feed continues
-to refresh from finished private runs. Hosting never serves private artifacts.
+public-safe results feed. Finished, verified runs publish automatically without
+manual source commits or snapshot deployments. Benchmark identities remain
+separate, missing metrics remain explicit, and publication failures retry without
+changing local evidence or grades. Its publication timestamp is explicit. The
+local feed continues to refresh from finished private runs. Hosting never serves
+private artifacts.

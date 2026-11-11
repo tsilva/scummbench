@@ -111,9 +111,14 @@ def register(archive: Path, *, source_repo: Path, store: Path,
             "trajectory_sha256": checksum, "archive_manifest_sha256": hashlib.sha256((archive / "run.json").read_bytes()).hexdigest(),
             "game_id": stats["game_id"], "status": stats["status"], "official_eligible": False,
             **archive_display(stats)})
-        if (store / "web/index.html").is_file():
-            from .public_results import publish
-            publish(store)
+        launcher = store / 'scripts/results-sync.js'
+        if launcher.is_file() and (store / 'local/results-publication.json').is_file():
+            try:
+                subprocess.Popen(['node', str(launcher), '--once'], cwd=store,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, start_new_session=True)
+            except OSError:
+                pass  # The independent retry job handles publication outages.
         return {"benchmark_added": added, "results_owner": "scummbench", "benchmark_path": str(target), "receipt": str(receipt)}
     finally:
         lock.unlink()

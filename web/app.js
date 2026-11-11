@@ -14,7 +14,7 @@ async function fetchResults(signal) {
   return validateResults(await response.json());
 }
 const sourceLabel = data => data.publication?.mode === 'snapshot' ? 'Published results' : 'Live results';
-const sourceHelp = data => data.publication?.mode === 'snapshot' ? 'Checks for newly published results every 5 seconds. Switch to sample data.' : 'Refreshes every 5 seconds. Switch to sample data.';
+const sourceHelp = data => data.publication?.mode === 'snapshot' ? 'Checks for newly published results every 5 seconds. Switch to sample data.' : data.publication?.mode === 'automatic' ? 'Verified results publish automatically. Switch to sample data.' : 'Refreshes every 5 seconds. Switch to sample data.';
 function markFresh(data) {
   if (feedStale) $('announcement').textContent = 'Results connection restored.';
   feedStale = false;
@@ -145,7 +145,7 @@ $('about-button').addEventListener('click', () => {
   const counts = Object.entries(diagnostics?.unavailable ?? {}).map(([name, count]) => `${count} ${name.replaceAll('_', ' ')}`);
   const freshness = state.data.publication?.mode === 'snapshot'
     ? `Published snapshot from ${new Date(state.data.publication.generated_at).toLocaleString()}. Checks for newly published results every 5 seconds.`
-    : 'Live results refresh every 5 seconds.';
+    : state.data.publication?.mode === 'automatic' ? `Verified results publish automatically. Last publication: ${new Date(state.data.publication.generated_at).toLocaleString()}. The page refreshes every 5 seconds; storage caches can take up to a minute to update.` : 'Live results refresh every 5 seconds.';
   $('feed-diagnostics').textContent = state.demo ? 'Sample data is illustrative and does not refresh.'
     : `${diagnostics?.plotted ?? 0} charted ${diagnostics?.plotted === 1 ? 'run' : 'runs'}. ${diagnostics?.counts_only ?? 0} legacy runs without an aligned trajectory.${counts.length ? ` Not charted: ${counts.join('; ')}.` : ''} ${freshness} Legacy versions isolate runs whose comparison provenance is incomplete.`;
   $('about-dialog').showModal();

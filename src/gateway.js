@@ -11,6 +11,7 @@ import { gitRevision } from './backend.js';
 import { loadWandb } from './wandb.js';
 import { resolveBackbone } from './backbone.js';
 import { runtimeDescriptor, captureProgress } from './results-capture.js';
+import { requestResultsPublication } from './results-publication.js';
 
 // Interactive gateway: ScummWEB mechanics, with ScummBench-owned
 // evidence. It makes no controlled-task or success-rate claim for free play.
@@ -69,6 +70,7 @@ export async function serve(argv, { reporting } = {}) {
         finished_at: new Date().toISOString() }, null, 2) + '\n', { mode: 0o600 });
       await selectedPublisher?.finish({ elapsed_ms: Date.now() - Date.parse(selected.started_at),
         usage: selected.usage, status: 'stopped', reason });
+      await requestResultsPublication();
     })();
     return finishingRun;
   };
