@@ -1,96 +1,137 @@
 # Live W&B reporting
 
-Fixed-task attempts and interactive MCP sessions can publish scalar metrics to
-Weights & Biases while they run. Reporting is opt-in and requires no SDK or new
-package dependency. The local ScummBench journals and results remain authoritative.
+Every new fixed-task attempt and interactive MCP session automatically publishes
+scalar metrics to **`tsilva/scummbench-<canonical ScummVM gameid>`** while it runs.
+Flight of the Amazon Queen uses `tsilva/scummbench-queen`. No W&B flag, SDK,
+configuration environment variable or outer credential wrapper is needed once
+the reviewed local Agent Vault binding is installed. Local ScummBench journals
+and grades remain authoritative.
 
-## Configuration
+## First use
 
-Create a private configuration such as `local/wandb.json`, based on
-[`examples/wandb.json`](../examples/wandb.json):
+Run the usual command:
+
+```sh
+scummbench run --backend local/backend.json \
+  --agent examples/observe-agent.json --out runs/observer-001
+```
+
+`scummbench mcp` also enables reporting by default, including when called by
+AgentSCUMM's public launcher. Each newly started game session gets its own W&B
+run, identified by the ScummBench run ID. Fixed tasks and interactive sessions
+have distinct `kind` values. The import-only path does not publish a run.
+Configuration takes effect on the next invocation; running processes keep their
+loaded code.
+
+For an explicitly offline run, use `--no-wandb`:
+
+```sh
+scummbench run --no-wandb --backend local/backend.json \
+  --agent examples/observe-agent.json --out runs/offline-observer-001
+scummbench mcp --no-wandb --scummweb /absolute/path/to/scummweb -- [backbone arguments]
+```
+
+MCP's W&B options belong before the `--` separator. Offline mode needs no W&B
+binding and overrides `SCUMMBENCH_WANDB_CONFIG`. Combining `--wandb` with
+`--no-wandb` is rejected.
+
+## Agent Vault setup
+
+The private binding is `local/wandb-agent-vault.json`, with this schema:
 
 ```json
 {
-  "entity": "your-entity",
-  "project": "scummbench-{gameid}",
-  "api_key_placeholder": "scummbench_wandb_placeholder"
+  "version": 1,
+  "launcher": "/absolute/path/to/reviewed/run-wandb",
+  "bundle": "local-scummbench-wandb",
+  "source": {
+    "instance": "https://app.infisical.com",
+    "project_id": "cba79865-b229-4181-909b-0da11a052799",
+    "environment": "prod",
+    "path": "/wandb",
+    "variable": "WANDB_API_KEY"
+  }
 }
 ```
 
-`entity` is the destination user/team. A literal project name is supported;
-`{gameid}` expands to the canonical ScummVM game ID, for example `scummbench-queen`
-for Flight of the Amazon Queen. Catalog slugs and edition-specific launch targets
-remain separate: `the-secret-of-monkey-island-demo` maps to `monkey`, and
-`nippon-safes-inc` maps to `nippon`. Unrecognized games fail publication with
-`unknown_scummvm_game_id` rather than deriving a project from a title or slug.
-The current mapping covers ScummWEB backbone's eight bundled catalog entries; imported
-games need a verified mapping before using a project template.
-Each ScummBench run ID identifies one
-W&B run. Fixed-task attempts and interactive sessions have distinct `kind` values.
+The binding must be an owner-only regular file, outside version control, with an
+absolute executable launcher and the exact reviewed source/bundle. It contains
+no credential. Provisioning the launcher and Agent Vault service is a separate
+trusted administration step; a binding alone does not grant access. Missing or
+invalid bindings fail before gameplay unless reporting is explicitly disabled.
+The installed checkout already has this binding. Other installations must provision
+their own reviewed route rather than copy a machine-specific launcher path.
 
-This file contains destination metadata and a non-secret placeholder, never an
-API key. It does not provision credentials or grant service access. Online use
-requires the repository's reviewed credential-proxy route for
-`https://api.wandb.ai`, covering the GraphQL and file-stream endpoints.
+ScummBench starts one publishing worker per run through that launcher. The
+launcher pins the Infisical instance, dedicated bundle, loopback proxy and CA
+fingerprint, supplies only `scummbench_wandb_placeholder` and process-local CA
+trust, and creates a 30-minute session revoked on exit. Before further uploads
+after 20 minutes, ScummBench restarts its worker with a fresh session and retains
+the same run ID and history offsets. Game and player processes receive none of
+these publishing environment variables. No SDK or runtime dependency is added.
 
-This checkout uses a dedicated Agent Vault profile. Its binding is documented in
-`AGENTS.md` and the owner-only `local/wandb-agent-vault.json`; its dispatcher is
-`scripts/wandb-agent-vault.py`. The maintainer explicitly authorized this W&B
-profile without an additional OS sandbox. Agent Vault brokers credentials but
-does not isolate the client or prevent a full-access process from accessing
-same-user resources. This exception does not change other repository/service
-policies or shared launcher defaults.
+The maintainer explicitly authorized this W&B profile without an additional OS
+sandbox. Agent Vault brokers credentials; it does not isolate same-user processes.
+The exception does not alter other service policies or shared launchers. The
+source key is copied to Agent Vault only by a separate trusted administrative
+refresh, never during ordinary startup. Do not borrow another project's route,
+read cached keys or inject a real key into a client.
 
-The host launcher pins the Infisical instance, dedicated access bundle, proxy
-address and CA fingerprint, supplies only the expected placeholder and
-process-local CA trust, and creates a 30-minute session revoked on exit. It
-starts with a clean environment and disables skill installation and persistent
-CA trust changes. The source key is copied to Agent Vault only by a separate
-trusted administrative refresh, never during ordinary startup. Missing bindings
-or rejected credentials fail explicitly; do not borrow another project's route,
-read cached keys, or inject a real key into a client.
-
-Check the configured route without publishing a run:
+Check the installed route without publishing a run:
 
 ```sh
 python3 scripts/wandb-agent-vault.py --check
 ```
 
-The dedicated service allows POST to `api.wandb.ai:443` at `/graphql` and
-`/files/tsilva/scummbench-queen`. The GraphQL path itself does not constrain the
-query's operation or project; the client must still use the approved payloads.
-Other game projects need an explicitly reviewed service-policy update.
+The dedicated service permits POST only to `api.wandb.ai:443`, at `/graphql` and
+eight explicit `/files/tsilva/scummbench-<id>` prefixes:
 
-The publisher requires `WANDB_API_KEY` to equal `api_key_placeholder` and an
-`HTTPS_PROXY` (or `https_proxy`). It uses a private Node HTTPS agent, ignores
-`NO_PROXY`, preserves certificate verification and rejects redirects. Node
-22.21+, 24.5+, or 25+ is required for this optional proxy transport. Older Node
-22 releases can still run ScummBench with reporting disabled. The reporter does
-not itself verify proxy service permissions. Test any new route with fake
-credentials, then a bounded authenticated check before use.
-Obtain any required outbound-content approval before publishing real runs.
+| ScummWEB catalog entry | Canonical ScummVM game ID |
+| --- | --- |
+| Beneath a Steel Sky | `sky` |
+| Broken Sword 2.5 | `sword25` |
+| Drascula | `drascula` |
+| DreamWeb | `dreamweb` |
+| Flight of the Amazon Queen | `queen` |
+| Lure of the Temptress | `lure` |
+| Nippon Safes Inc. | `nippon` |
+| The Secret of Monkey Island demo | `monkey` |
 
-After authentication succeeds and any required publication approval is obtained,
-opt in for a fixed-task attempt through the reviewed launcher:
+The GraphQL path does not enforce operation or project permissions. The worker
+separately validates the fixed run-creation mutation, entity, known project, run
+ID and scalar payload allowlist. Adding a game requires a verified mapping and
+reviewed service scope. Unknown games fail publication with
+`unknown_scummvm_game_id`; project names are never guessed from titles or slugs.
+Edition-specific launch targets such as `dreamweb-cd` remain separate from game IDs.
 
-```sh
-python3 scripts/wandb-agent-vault.py scummbench run --backend local/backend.json \
-  --agent examples/observe-agent.json --out runs/observer-001 \
-  --wandb local/wandb.json
+## Configuration overrides
+
+`--wandb FILE` or `SCUMMBENCH_WANDB_CONFIG` can select a destination configuration;
+the CLI flag wins. The built-in default is equivalent to:
+
+```json
+{
+  "entity": "tsilva",
+  "project": "scummbench-{gameid}",
+  "api_key_placeholder": "scummbench_wandb_placeholder"
+}
 ```
 
-For interactive play, pass `scummbench mcp --wandb /absolute/path/to/wandb.json`
-through the same dispatcher, with `--wandb` before the backend argument separator
-`--`. Alternatively set
-`SCUMMBENCH_WANDB_CONFIG` to an absolute configuration path in the launcher that
-starts ScummBench. The CLI flag takes precedence over the environment variable.
-W&B settings and credentials are not forwarded to the game or player processes.
-The `--import-only` path does not publish a run. Existing processes must finish
-normally; configuration applies on the next invocation.
+`{gameid}` expands using the verified mapping. A literal project name is also
+supported, subject to the selected route's permissions and matching game metadata.
+The automatic worker accepts only the dedicated `tsilva/scummbench-<id>` scope.
+An override does not expand Agent Vault permissions. Configurations contain
+metadata and a non-secret placeholder, never an API key.
 
-Invalid configuration, missing placeholders or missing proxy settings fail before
-gameplay starts. There is no automatic login, credential-cache lookup, direct
-network fallback or billing action.
+Explicitly wrapping a command with `scripts/wandb-agent-vault.py` remains
+supported. If already inside a matching reviewed proxy session, the publisher
+uses that session directly. Its `WANDB_API_KEY` must equal the configured
+placeholder and `HTTPS_PROXY` (or `https_proxy`) must be present. The private Node
+HTTPS agent ignores `NO_PROXY`, verifies TLS, and refuses redirects. The proxy
+transport requires Node 22.21+, 24.5+, or 25+; earlier Node 22 versions can run
+with `--no-wandb`. No automatic login, credential-cache lookup or direct-network
+fallback is performed. Test newly provisioned routes with fake credentials and
+then a bounded authenticated check before use.
 
 ## Published data
 
@@ -119,7 +160,7 @@ and final grading are fixed before network shutdown draining.
 
 ## Delivery and recovery
 
-Enabled runs contain two additional private files:
+Online runs contain two additional private files:
 
 - `wandb-events.jsonl`: the allowlisted start metadata and history points.
 - `wandb.json`: destination, run URL, uploaded history-row count and publication
@@ -131,7 +172,8 @@ protocol, as implemented in the upstream
 This is a small protocol adapter, not full SDK compatibility; remote compatibility
 requires a live check against the configured service.
 
-Network requests have a 1.5-second deadline and at most one retry of the same
+Worker startup has a separate 15-second allowance and runs outside the gameplay
+hot path. Network requests have a 1.5-second deadline and at most one retry of the same
 payload/offset. Authentication and other non-transient HTTP failures are not
 retried. Network memory holds at most 256 pending points; under backpressure the
 newest pending point is replaced while the journal keeps every recorded point.

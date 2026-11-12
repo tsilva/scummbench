@@ -8,6 +8,7 @@ import { LineProcess, ProtocolError, TimeoutError } from './process.js';
 import { digest, visibleTask, validateDecision, requireThat, root, json, validate, loadTask } from './contracts.js';
 import { ScummWebBackend, gradeReceipt, gitRevision } from './backend.js';
 import { requestResultsPublication } from './results-publication.js';
+import { loadWandb } from './wandb.js';
 
 class Outcome extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
@@ -37,9 +38,12 @@ export async function archiveContent(content, directory) {
 }
 
 export async function runAttempt({ loadedTask, backendConfig, provenance, agentConfig, output, reporting,
+  loadReporting = loadWandb,
   createBackend = (config, directory, task) => new ScummWebBackend(config, directory, task) }) {
   const { task, sha256: taskHash } = loadedTask;
   validateAgent(agentConfig);
+  if (reporting === undefined) reporting = await loadReporting(process.env.SCUMMBENCH_WANDB_CONFIG);
+  if (reporting === false) reporting = undefined;
   const directory = path.resolve(output);
   await mkdir(directory, { mode: 0o700 }); // Never reuse/overwrite any existing run.
   await mkdir(path.join(directory, 'screenshots'), { mode: 0o700 });

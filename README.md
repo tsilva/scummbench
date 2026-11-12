@@ -64,6 +64,11 @@ scummbench doctor --backend local/backend.json
 starting a game. The configuration records runtime and asset pins as unknown
 until supplied; declarations do not verify the served deployment.
 
+New runs automatically publish scalar updates to
+`tsilva/scummbench-<canonical ScummVM gameid>` through the configured Agent Vault
+route. See [W&B setup](docs/wandb.md) for the required private binding. Use
+`--no-wandb` to run offline without that route.
+
 Run the protocol demonstration:
 
 ```sh
@@ -96,7 +101,7 @@ agent; all v1 results explicitly have `official_eligible: false`.
 - [Evaluation protocol](docs/evaluation.md): tasks, accounting, outcomes, scoring,
   provenance, and requirements for an official release.
 - [Development](docs/development.md): tests, CI, assets, and extension boundaries.
-- [Live W&B reporting](docs/wandb.md): optional per-game metrics and final outcomes.
+- [Live W&B reporting](docs/wandb.md): automatic per-game metrics and final outcomes.
 
 Code distribution licensing has not been selected. Game assets retain their
 own terms and are not included; deployment availability is not a redistribution

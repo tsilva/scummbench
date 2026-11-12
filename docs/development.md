@@ -20,9 +20,13 @@ processes. Temporary fixture runs are created under a unique OS temporary
 directory and removed after each test. No game assets, live browser, model API,
 network access, or credentials are needed for the suite.
 
-The optional [W&B publisher](wandb.md) uses Node's built-in HTTPS proxy transport.
-Synthetic tests cover streaming before completion, payload exclusions, game
-project routing, contiguous retry offsets, backpressure, shutdown deadlines,
+The automatic [W&B publisher](wandb.md) uses a dedicated Agent Vault worker and
+Node's built-in HTTPS proxy transport. Ordinary synthetic gameplay tests explicitly
+disable reporting. Publisher tests inject synthetic upstreams and temporary
+owner-only route bindings; they never use the installed credential route.
+They cover automatic fixed-task and MCP defaults, real stdio worker communication,
+session renewal, cancellation, payload exclusions, canonical game project routing,
+contiguous retry offsets, backpressure, shutdown deadlines,
 independent grading during outages, and interactive sessions without inferred
 success. These fixtures do not establish live W&B authentication or ingestion.
 

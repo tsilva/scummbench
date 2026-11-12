@@ -26,7 +26,7 @@ async function publisher(t, transport, options = {}) {
 
 const reply = body => ({ data: { upsertBucket: { bucket: { name: body.variables.name } } } });
 
-test('W&B is explicit and rejects credential files, unsafe destinations and raw keys', () => {
+test('W&B rejects credential files, unsafe destinations and raw keys', () => {
   for (const patch of [{ api_key: 'secret' }, { entity: '../other' }, { project: 'space/name' }, { api_key_placeholder: 'secret' }]) {
     assert.throws(() => validateWandbConfig({ ...config, ...patch }));
   }

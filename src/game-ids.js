@@ -1,4 +1,4 @@
-// AgentSCUMM catalog slugs are launch identifiers. W&B projects use ScummVM's
+// ScummWEB backbone catalog slugs are launch identifiers. W&B projects use ScummVM's
 // gameId, which differs from edition-specific launcher targets such as
 // dreamweb-cd and monkey-demo. These mappings follow ScummWEB's games catalog.
 const catalogIds = new Map([
@@ -16,3 +16,5 @@ export function scummvmGameId(game) {
   if (catalogIds.has(game)) return catalogIds.get(game);
   return [...catalogIds.values()].includes(game) ? game : null;
 }
+
+export const scummvmGameIds = Object.freeze([...new Set(catalogIds.values())].sort());

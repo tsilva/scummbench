@@ -7,9 +7,10 @@ import { loadTask, root, digest, visibleTask, validateDecision } from '../src/co
 import { gradeReceipt } from '../src/backend.js';
 import { runAttempt, verifyRun } from '../src/runner.js';
 import { aggregate, wilson } from '../src/aggregate.js';
-import { WandbPublisher } from '../src/wandb.js';
+import { loadWandb, WandbPublisher } from '../src/wandb.js';
+import { fixtureRoute } from './fixtures/wandb-route.js';
 
-async function attempt(t, { mode = 'success', agent = 'click', budgets = {}, reporting } = {}) {
+async function attempt(t, { mode = 'success', agent = 'click', budgets = {}, reporting = false, loadReporting } = {}) {
   const temporary = await mkdtemp(path.join(tmpdir(), 'scummbench-test-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const loaded = await loadTask(path.join(root, 'tasks/queen/hotel-laundry.v1.json'));
@@ -19,7 +20,7 @@ async function attempt(t, { mode = 'success', agent = 'click', budgets = {}, rep
     scummweb_revision: 'a'.repeat(40), base_url: `http://${mode}.invalid` };
   const agentConfig = { command: process.execPath, args: [path.join(root, 'test/fixtures/agent.js'), agent], label: `fixture-${agent}` };
   const output = path.join(temporary, 'run');
-  const options = { loadedTask: loaded, backendConfig, provenance: { commit_id: 'a'.repeat(40), base_url: backendConfig.base_url }, agentConfig, output, reporting };
+  const options = { loadedTask: loaded, backendConfig, provenance: { commit_id: 'a'.repeat(40), base_url: backendConfig.base_url }, agentConfig, output, reporting: loadReporting ? undefined : reporting, loadReporting };
   return { ...(await runAttempt(options)), options };
 }
 
@@ -33,6 +34,33 @@ test('native success survives MCP exit; screenshots externalize and verify offli
   assert.ok(trajectory.includes('screenshots/'));
   assert.ok(!trajectory.includes('iVBOR'));
   await assert.rejects(runAttempt(run.options), { code: 'EEXIST' });
+});
+
+test('fixed tasks automatically select the canonical W&B project and retain grades if worker startup fails', async t => {
+  const temporary = await mkdtemp(path.join(tmpdir(), 'scummbench-auto-wandb-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const routeFile = await fixtureRoute(temporary);
+  for (const failed of [false, true]) {
+    const posts = [];
+    const run = await attempt(t, { loadReporting: file => {
+      assert.equal(file, undefined);
+      return loadWandb(file, {}, { routeFile, brokerTransport: () => {
+        const transport = async (endpoint, body) => {
+          posts.push({ endpoint, body });
+          return endpoint === '/graphql' ? { data: { upsertBucket: { bucket: { name: body.variables.name } } } } : {};
+        };
+        transport.ready = async () => { if (failed) throw new Error('private startup diagnostics'); };
+        return transport;
+      } });
+    } });
+    assert.equal(run.result.status, 'success');
+    const receipt = JSON.parse(await readFile(path.join(run.directory, 'wandb.json'), 'utf8'));
+    assert.equal(receipt.project, 'scummbench-queen');
+    assert.equal(receipt.state, failed ? 'failed' : 'synced');
+    assert.equal(posts.length > 0, !failed);
+    assert.doesNotMatch(JSON.stringify(receipt), /private startup diagnostics/);
+    await verifyRun(run.directory);
+  }
 });
 
 test('agent finish is failure, not a success claim', async t => {

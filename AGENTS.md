@@ -40,10 +40,13 @@ an additional OS sandbox on 2026-11-11. This exception is limited to W&B for thi
 repository. Agent Vault brokers credentials; it does not isolate the client.
 
 Use `python3 scripts/wandb-agent-vault.py --check` for a read-only identity check,
-or pass the selected command to that dispatcher. Its owner-only private binding
+or pass the selected command to that dispatcher. New runs also start their own
+publishing worker automatically, using `tsilva/scummbench-<canonical gameid>`;
+`--no-wandb` explicitly disables publishing. Its owner-only private binding
 is `local/wandb-agent-vault.json`. The trusted host launcher uses the dedicated
 `local-scummbench-wandb` bundle, the pinned proxy CA, process-local TLS trust,
-30-minute sessions, automatic session revocation, and no skill installation.
+30-minute sessions, worker renewal after 20 minutes, automatic session revocation,
+and no skill installation.
 Never use the shared `local-wandb` bundle as a fallback or change shared launchers.
 
 The approved source is `https://app.infisical.com`, Secret Manager project
@@ -53,9 +56,13 @@ Source-key copying/renewal is a separate trusted administrative action, never an
 ordinary startup step, raw environment injection, or a request for a key in chat.
 
 The service permits only POST to `api.wandb.ai:443`, with path prefixes `/graphql`
-and `/files/tsilva/scummbench-queen`. GraphQL path access does not enforce operation
-or project permissions. Publishing uses canonical ScummVM IDs (`queen` here);
-other projects need a reviewed route update. Preserve outbound draft approval.
+and the eight explicit `/files/tsilva/scummbench-<id>` prefixes for `drascula`,
+`dreamweb`, `lure`, `monkey`, `nippon`, `queen`, `sky`, and `sword25`. GraphQL path
+access does not enforce operation or project permissions; the publishing worker
+validates the fixed mutation, destination, run ID, and scalar payload allowlist.
+Additional game IDs need a verified mapping and reviewed route update. Preserve
+outbound draft approval for messages; automatic scalar result publishing is
+explicitly requested by the user.
 
 ## Automatic public results
 

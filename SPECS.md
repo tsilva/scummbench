@@ -35,8 +35,10 @@ running processes are not hot-reloaded. Node.js 22+ remains required.
   use, and available usage telemetry. Unknown values remain null with reasons.
 - Short tasks and full-game completion are separate evaluation categories.
   Existing assisted playthroughs are development evidence, not controlled scores.
-- Runs can opt into live W&B result reporting, with projects selected per game
-  (`scummbench-<gameid>`, using canonical ScummVM game IDs, such as `queen`).
+- All new fixed-task runs and interactive MCP sessions automatically publish live
+  W&B results to `tsilva/scummbench-<gameid>`, using canonical ScummVM game IDs,
+  such as `queen`. The reviewed Agent Vault worker starts automatically;
+  `--no-wandb` explicitly selects offline operation.
   Local evidence and grading remain authoritative;
   reporting does not expose evaluator state to players or make interactive play
   an independently graded benchmark result.

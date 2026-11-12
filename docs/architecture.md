@@ -54,6 +54,17 @@ Each process group belongs to this attempt; unrelated servers and profiles are
 never stopped. Fresh profile means no reused browser storage or saves, not a
 claim that engine initialization is deterministic.
 
+New fixed-task attempts and interactive sessions automatically journal scalar
+results and send them to a per-run W&B worker through stdio JSON-RPC. The worker
+starts through the reviewed Agent Vault launcher, which supplies a placeholder,
+proxy session and process-local CA trust. These settings are not passed to the
+game or player. The worker validates the fixed mutation, canonical game project,
+run ID and scalar payload; Agent Vault supplies the real credential upstream.
+Workers renew their bounded sessions after 20 minutes and revoke them on exit.
+Missing route bindings fail setup explicitly. Delivery failures remain in the
+private publication receipt and do not alter grades. `--no-wandb` selects offline
+operation. See [live reporting](wandb.md) for setup and delivery limits.
+
 ## Repository layout
 
 - `tasks/`: versioned task contracts; currently one Queen development task.

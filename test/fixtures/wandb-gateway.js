@@ -1,13 +1,17 @@
 // Synthetic publication transport for the real gateway; no network or keys.
-import { appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { serve } from '../../src/gateway.js';
-import { WandbPublisher } from '../../src/wandb.js';
+import { loadWandb } from '../../src/wandb.js';
+import { createBrokeredWandbTransport } from '../../src/wandb-broker.js';
+import { McpClient } from '../../src/process.js';
+import { fixtureRoute } from './wandb-route.js';
 
 const [directory, ...argv] = process.argv.slice(2);
-await serve(argv, { reporting: details => new WandbPublisher({
-  entity: 'fixture', project: 'tests', api_key_placeholder: 'test_placeholder',
-}, { ...details, flushMs: 5, transport: async (endpoint, body) => {
-  await appendFile(path.join(directory, 'wire.jsonl'), JSON.stringify({ endpoint, body }) + '\n');
-  return endpoint === '/graphql' ? { data: { upsertBucket: { bucket: { name: body.variables.name } } } } : {};
-} }) });
+const routeFile = await fixtureRoute(directory);
+await serve(argv, { loadReporting: file => {
+  if (file !== undefined) throw new Error('Expected automatic defaults without flags or environment configuration');
+  return loadWandb(file, {}, { routeFile, brokerTransport: (route, details) => createBrokeredWandbTransport(route, {
+    ...details, createClient: (_command, args) => new McpClient(process.execPath,
+      [path.join(import.meta.dirname, 'wandb-worker.js'), path.join(directory, 'wire.jsonl'), ...args.slice(2)]),
+  }) });
+} });

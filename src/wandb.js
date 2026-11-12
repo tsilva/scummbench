@@ -3,10 +3,11 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { json, requireThat } from './contracts.js';
 import { scummvmGameId } from './game-ids.js';
+import { createBrokeredWandbTransport, loadWandbRoute } from './wandb-broker.js';
 
 // Minimal scalar-only wire protocol used by wandb/wandb-js's InternalApi and
 // FileStream. No SDK, implicit login, machine metadata, code, or media uploads.
-const upsert = `mutation ScummBenchRun($name: String!, $project: String!, $entity: String!, $config: JSONString!) {
+export const wandbUpsert = `mutation ScummBenchRun($name: String!, $project: String!, $entity: String!, $config: JSONString!) {
   upsertBucket(input: {name: $name, modelName: $project, entityName: $entity, config: $config, state: "running"}) {
     bucket { name }
   }
@@ -14,6 +15,8 @@ const upsert = `mutation ScummBenchRun($name: String!, $project: String!, $entit
 const counters = ['decisions', 'submitted_actions', 'action_sequences', 'observations',
   'requested_wait_ticks', 'requested_wait_ms', 'tool_calls', 'tool_errors'];
 const metadataKeys = ['kind', 'suite', 'task_id', 'task_sha256', 'game', 'track', 'category', 'agent_label', 'agent_config_sha256'];
+export const defaultWandbConfig = Object.freeze({ entity: 'tsilva', project: 'scummbench-{gameid}',
+  api_key_placeholder: 'scummbench_wandb_placeholder' });
 
 export function validateWandbConfig(config) {
   requireThat(config && Object.keys(config).every(key => ['entity', 'project', 'api_key_placeholder'].includes(key)), 'Invalid W&B configuration');
@@ -27,16 +30,22 @@ export function validateWandbConfig(config) {
 
 // Called before gameplay. Fail explicitly rather than fall back to cached keys
 // or direct networking. Route provisioning/review belongs to the operator.
-export async function loadWandb(file, env = process.env) {
-  if (!file) return undefined;
+export async function loadWandb(file, env = process.env, { routeFile, brokerTransport = createBrokeredWandbTransport } = {}) {
+  if (file === false) return undefined;
   try {
-    const config = validateWandbConfig(await json(file));
+    const config = validateWandbConfig(file ? await json(file) : { ...defaultWandbConfig });
+    if (env.WANDB_API_KEY === undefined && env.HTTPS_PROXY === undefined && env.https_proxy === undefined) {
+      requireThat(config.entity === 'tsilva' && /^scummbench-(?:\{gameid\}|[a-z0-9][a-z0-9_-]*)$/.test(config.project)
+        && config.api_key_placeholder === defaultWandbConfig.api_key_placeholder, 'Destination is outside the reviewed W&B route');
+      const route = await loadWandbRoute(routeFile);
+      return details => new WandbPublisher(config, { ...details, transport: brokerTransport(route, details) });
+    }
     // Validate routing now, but give every run its own transport resources.
     const transport = createWandbTransport(config, env);
     transport.close();
     return details => new WandbPublisher(config, { ...details, transport: createWandbTransport(config, env) });
   } catch {
-    const error = new Error('W&B setup failed: require valid entity/project configuration, a matching proxy placeholder, an HTTPS proxy, verified TLS, and Node 22.21+ or 24.5+. No direct credential fallback is allowed.');
+    const error = new Error('W&B setup failed: require the reviewed owner-only Agent Vault route, or an existing matching proxy placeholder and verified TLS. Use --no-wandb for an explicitly offline run. No direct credential fallback is allowed.');
     error.code = 'WANDB_SETUP';
     throw error;
   }
@@ -184,9 +193,11 @@ export class WandbPublisher {
   }
 
   async upload() {
+    await this.transport.ready?.();
+    if (this.state === 'failed' || this.expired) return;
     if (this.state === 'pending') {
       const config = JSON.stringify(Object.fromEntries(Object.entries(this.metadata).map(([key, value]) => [key, { value }])));
-      const result = await this.post('/graphql', { query: upsert,
+      const result = await this.post('/graphql', { query: wandbUpsert,
         variables: { name: this.runId, project: this.config.project, entity: this.config.entity, config } });
       if (result.data?.upsertBucket?.bucket?.name !== this.runId) throw new Error('W&B run mismatch');
       if (this.state === 'failed' || this.expired) return;
@@ -233,7 +244,7 @@ export class WandbPublisher {
     await Promise.race([flush().catch(() => this.fail('upload_failed')), timeout]);
     clearTimeout(timer); this.finished = true;
     // Transport resources are owned by this run, including timed-out sockets.
-    this.transport.close?.();
+    await this.transport.close?.();
     await this.receipt();
   }
 }

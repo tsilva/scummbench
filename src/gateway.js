@@ -15,11 +15,12 @@ import { requestResultsPublication } from './results-publication.js';
 
 // Interactive gateway: ScummWEB mechanics, with ScummBench-owned
 // evidence. It makes no controlled-task or success-rate claim for free play.
-export async function serve(argv, { reporting } = {}) {
+export async function serve(argv, { reporting, loadReporting = loadWandb } = {}) {
   const separator = argv.indexOf('--');
   const { values } = parseArgs({ args: separator < 0 ? argv : argv.slice(0, separator), options: {
-    scummweb: { type: 'string' }, wandb: { type: 'string' },
+    scummweb: { type: 'string' }, wandb: { type: 'string' }, 'no-wandb': { type: 'boolean' },
   } });
+  requireThat(!(values.wandb && values['no-wandb']), 'Conflicting W&B options');
   const backbone = await resolveBackbone(values.scummweb);
   const sourceRevision = gitRevision(root), backboneRevision = gitRevision(backbone.directory);
   const args = separator < 0 ? [] : argv.slice(separator + 1);
@@ -32,7 +33,8 @@ export async function serve(argv, { reporting } = {}) {
     process.exitCode = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', code => resolve(code ?? 1)); });
     return;
   }
-  reporting ??= await loadWandb(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
+  if (reporting === undefined) reporting = values['no-wandb'] ? false : await loadReporting(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
+  if (reporting === false) reporting = undefined;
   const store = path.resolve(process.env.SCUMMBENCH_RUNS_DIR ?? path.join(root, 'runs/interactive'));
   const client = new McpClient(process.execPath, [backbone.server, ...args],
     { cwd: process.cwd(), env: { SCUMMBENCH_MANAGED: '1' } });

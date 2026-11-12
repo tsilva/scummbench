@@ -22,8 +22,10 @@ const help = `ScummBench development runner (Node.js 22+)
   scummbench register-archive --archive PATH --source-repo /absolute/source-repo
   scummbench paths
 
-run optionally accepts --task PATH and --wandb local/wandb.json.
-MCP accepts --wandb before its -- separator; SCUMMBENCH_WANDB_CONFIG also opts in.
+New runs publish to tsilva/scummbench-<ScummVM gameid> automatically through Agent Vault.
+run optionally accepts --task PATH and --wandb CONFIG to override the default configuration.
+Use --no-wandb for an explicitly offline run. MCP accepts W&B options before --.
+SCUMMBENCH_WANDB_CONFIG selects an alternative configuration.
 Output directories must not already exist.
 doctor verifies the MCP connection without launching a game. No model API calls
 or game assets are bundled. Run an agent inside your approved credential route.
@@ -41,6 +43,7 @@ async function main() {
     scummweb: { type: 'string' }, 'base-url': { type: 'string' }, run: { type: 'string', multiple: true },
     help: { type: 'boolean' }, version: { type: 'boolean' },
     wandb: { type: 'string' },
+    'no-wandb': { type: 'boolean' },
   } });
   const [command] = positionals;
   requireThat(positionals.length <= 1, 'Unexpected positional arguments');
@@ -52,10 +55,11 @@ async function main() {
   if (values.help || !command) { process.stdout.write(help); return; }
   const allowed = {
     tasks: [], paths: [], 'init-config': ['scummweb', 'base-url', 'out'], doctor: ['backend'],
-    run: ['backend', 'agent', 'task', 'out', 'wandb'], verify: ['run'], aggregate: ['run'],
+    run: ['backend', 'agent', 'task', 'out', 'wandb', 'no-wandb'], verify: ['run'], aggregate: ['run'],
   };
   requireThat(Object.hasOwn(allowed, command), 'Unknown command');
   requireThat(Object.keys(values).every(key => allowed[command].includes(key)), 'Unexpected command option');
+  requireThat(!(values.wandb && values['no-wandb']), 'Conflicting W&B options');
   let result;
   if (command === 'paths') {
     result = { repository: root, benchmarks: path.join(root, 'BENCHMARKS.md'), interactive_runs: path.join(root, 'runs/interactive') };
@@ -97,7 +101,7 @@ async function main() {
       } finally { await client.close(); }
     } else {
       requireThat(values.agent && values.out, 'agent and out are required');
-      const reporting = await loadWandb(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
+      const reporting = values['no-wandb'] ? false : await loadWandb(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
       const attempt = await runAttempt({ loadedTask, backendConfig: config, provenance,
         agentConfig: validateAgent(await json(values.agent)), output: values.out, reporting });
       result = { directory: attempt.directory, ...attempt.result };
