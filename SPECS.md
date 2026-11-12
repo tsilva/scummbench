@@ -19,7 +19,12 @@ resume revisions, separately from ScummWEB and benchmark contract versions.
 The global `scummbench` command supports `uv tool install --editable` from this
 checkout. It runs the live repository implementation, so subsequent source and
 task edits take effect on the next invocation without reinstalling. Already
-running processes are not hot-reloaded. Node.js 22+ remains required.
+running workers change only on an explicit reload or recovery after failure.
+Interactive MCP connections support routine gateway and backbone updates without
+restarting Codex. Reload preserves saved profile data, requires idle sessions and
+clean committed source, verifies replacement provenance, and never replays game
+inputs. Incompatible tool schemas still require host reconnection. Existing
+connections need one refresh to adopt this capability. Node.js 22+ remains required.
 
 - Task definitions version the starting state, visible objective, permitted
   inputs, budgets, and engine-state success condition.

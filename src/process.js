@@ -8,12 +8,13 @@ export function cleanEnv() {
     'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
 }
 
-// Each child owns a process group on Unix. Cleanup is scoped to that group,
-// including browser/model-runner descendants; unrelated instances are untouched.
+// Children normally own a process group on Unix. Supervised backbones share
+// their worker's group so abrupt gateway death cannot leave a backbone behind.
 export class LineProcess {
-  constructor(command, args = [], { cwd, env = {}, maxBytes = 24 * 1024 * 1024, maxQueue = 256 } = {}) {
+  constructor(command, args = [], { cwd, env = {}, maxBytes = 24 * 1024 * 1024, maxQueue = 256, detached = process.platform !== 'win32' } = {}) {
     this.buffer = ''; this.lines = []; this.waiters = []; this.maxBytes = maxBytes; this.maxQueue = maxQueue;
-    this.child = spawn(command, args, { cwd, env: { ...cleanEnv(), ...env }, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
+    this.detached = detached;
+    this.child = spawn(command, args, { cwd, env: { ...cleanEnv(), ...env }, detached, stdio: ['pipe', 'pipe', 'pipe'] });
     this.closed = new Promise(resolve => { this.resolveClosed = resolve; });
     this.child.stderr.resume(); // Never persist potentially credential-bearing diagnostics.
     this.child.stdout.setEncoding('utf8');
@@ -61,7 +62,7 @@ export class LineProcess {
   async close() {
     const kill = signal => {
       try {
-        if (process.platform !== 'win32' && this.child.pid) process.kill(-this.child.pid, signal);
+        if (this.detached && process.platform !== 'win32' && this.child.pid) process.kill(-this.child.pid, signal);
         else this.child.kill(signal);
       } catch (error) { if (error.code !== 'ESRCH') throw error; }
     };

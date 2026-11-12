@@ -33,9 +33,19 @@ All v1 results are development-only, with no enforced OS/network sandbox.
 `;
 
 async function main() {
-  if (process.argv[2] === 'mcp') {
-    const { serve } = await import('./gateway.js');
-    await serve(process.argv.slice(3));
+  if (['mcp', 'mcp-worker'].includes(process.argv[2])) {
+    const args = process.argv.slice(3);
+    if (process.argv[2] === 'mcp-worker' || args.includes('--import-only')) {
+      const { serve } = await import('./gateway.js');
+      await serve(args, { supervised: process.argv[2] === 'mcp-worker' });
+    } else {
+      // Retain fail-fast configuration and credential-route diagnostics before
+      // the supervisor starts a worker or reads host protocol messages.
+      const { prepareGateway } = await import('./gateway.js');
+      await prepareGateway(args);
+      const { supervise } = await import('./mcp-runtime.js');
+      await supervise(args);
+    }
     return;
   }
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {

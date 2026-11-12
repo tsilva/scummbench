@@ -15,15 +15,26 @@ import { requestResultsPublication } from './results-publication.js';
 
 // Interactive gateway: ScummWEB mechanics, with ScummBench-owned
 // evidence. It makes no controlled-task or success-rate claim for free play.
-export async function serve(argv, { reporting, loadReporting = loadWandb } = {}) {
+export async function prepareGateway(argv, { reporting, loadReporting = loadWandb } = {}) {
   const separator = argv.indexOf('--');
   const { values } = parseArgs({ args: separator < 0 ? argv : argv.slice(0, separator), options: {
     scummweb: { type: 'string' }, wandb: { type: 'string' }, 'no-wandb': { type: 'boolean' },
   } });
   requireThat(!(values.wandb && values['no-wandb']), 'Conflicting W&B options');
   const backbone = await resolveBackbone(values.scummweb);
-  const sourceRevision = gitRevision(root), backboneRevision = gitRevision(backbone.directory);
   const args = separator < 0 ? [] : argv.slice(separator + 1);
+  if (!args.includes('--import-only')) {
+    if (reporting === undefined) reporting = values['no-wandb'] ? false : await loadReporting(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
+    if (reporting === false) reporting = undefined;
+  }
+  return { backbone, args, reporting };
+}
+
+export async function serve(argv, { reporting, loadReporting = loadWandb, supervised = false } = {}) {
+  const prepared = await prepareGateway(argv, { reporting, loadReporting });
+  const { backbone, args } = prepared;
+  reporting = prepared.reporting;
+  const sourceRevision = gitRevision(root), backboneRevision = gitRevision(backbone.directory);
   const dataDirectoryIndex = args.indexOf('--data-dir');
   const nativeStore = dataDirectoryIndex >= 0 ? path.resolve(args[dataDirectoryIndex + 1])
     : path.join(backbone.directory, '.runs/agent-backbone/instances');
@@ -33,11 +44,9 @@ export async function serve(argv, { reporting, loadReporting = loadWandb } = {})
     process.exitCode = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', code => resolve(code ?? 1)); });
     return;
   }
-  if (reporting === undefined) reporting = values['no-wandb'] ? false : await loadReporting(values.wandb ?? process.env.SCUMMBENCH_WANDB_CONFIG);
-  if (reporting === false) reporting = undefined;
   const store = path.resolve(process.env.SCUMMBENCH_RUNS_DIR ?? path.join(root, 'runs/interactive'));
   const client = new McpClient(process.execPath, [backbone.server, ...args],
-    { cwd: process.cwd(), env: { SCUMMBENCH_MANAGED: '1' } });
+    { cwd: process.cwd(), env: { SCUMMBENCH_MANAGED: '1' }, detached: !supervised && process.platform !== 'win32' });
   const version = (await json(path.join(root, 'package.json'))).version;
   let run, publisher, finishingRun, tail = Promise.resolve(), closing = false;
   const write = event => {
