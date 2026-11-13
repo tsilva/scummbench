@@ -116,7 +116,14 @@ def register(archive: Path, *, source_repo: Path, store: Path,
             try:
                 subprocess.Popen(['node', str(launcher), '--once'], cwd=store,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, start_new_session=True)
+                                 stderr=subprocess.DEVNULL, start_new_session=True,
+                                 env={name: value for name, value in os.environ.items()
+                                      if name in {'HOME', 'PATH', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND'} or (
+                                          'BLOB_READ_WRITE_TOKEN' in os.environ and name in {
+                                              'BLOB_READ_WRITE_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY',
+                                              'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy',
+                                              'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS',
+                                              'NODE_TLS_REJECT_UNAUTHORIZED'})})
             except OSError:
                 pass  # The independent retry job handles publication outages.
         return {"benchmark_added": added, "results_owner": "scummbench", "benchmark_path": str(target), "receipt": str(receipt)}

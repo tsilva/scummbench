@@ -65,14 +65,14 @@ starting a game. The configuration records runtime and asset pins as unknown
 until supplied; declarations do not verify the served deployment.
 
 New runs automatically publish scalar updates to
-`tsilva/scummbench-<canonical ScummVM gameid>` through the configured Agent Vault
-route. See [W&B setup](docs/wandb.md) for the required private binding. Use
-`--no-wandb` to run offline without that route.
+`tsilva/scummbench-<canonical ScummVM gameid>` using the supplied publishing
+connection. See [W&B reporting](docs/wandb.md) for its contract. The demonstration
+below uses `--no-wandb` for offline operation.
 
 Run the protocol demonstration:
 
 ```sh
-scummbench run --backend local/backend.json \
+scummbench run --no-wandb --backend local/backend.json \
   --agent examples/observe-agent.json --out runs/observer-001
 scummbench verify --run runs/observer-001
 ```

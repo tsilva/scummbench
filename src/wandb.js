@@ -3,7 +3,7 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { json, requireThat } from './contracts.js';
 import { scummvmGameId } from './game-ids.js';
-import { createBrokeredWandbTransport, loadWandbRoute } from './wandb-broker.js';
+import { createBrokeredWandbTransport, suppliedWandbWorker } from './wandb-broker.js';
 
 // Minimal scalar-only wire protocol used by wandb/wandb-js's InternalApi and
 // FileStream. No SDK, implicit login, machine metadata, code, or media uploads.
@@ -29,15 +29,15 @@ export function validateWandbConfig(config) {
 }
 
 // Called before gameplay. Fail explicitly rather than fall back to cached keys
-// or direct networking. Route provisioning/review belongs to the operator.
-export async function loadWandb(file, env = process.env, { routeFile, brokerTransport = createBrokeredWandbTransport } = {}) {
+// or implicit login. Route provisioning/review belongs to the operator.
+export async function loadWandb(file, env = process.env, { brokerTransport = createBrokeredWandbTransport } = {}) {
   if (file === false) return undefined;
   try {
     const config = validateWandbConfig(file ? await json(file) : { ...defaultWandbConfig });
-    if (env.WANDB_API_KEY === undefined && env.HTTPS_PROXY === undefined && env.https_proxy === undefined) {
+    const route = await suppliedWandbWorker(env);
+    if (route) {
       requireThat(config.entity === 'tsilva' && /^scummbench-(?:\{gameid\}|[a-z0-9][a-z0-9_-]*)$/.test(config.project)
         && config.api_key_placeholder === defaultWandbConfig.api_key_placeholder, 'Destination is outside the reviewed W&B route');
-      const route = await loadWandbRoute(routeFile);
       return details => new WandbPublisher(config, { ...details, transport: brokerTransport(route, details) });
     }
     // Validate routing now, but give every run its own transport resources.
@@ -45,7 +45,7 @@ export async function loadWandb(file, env = process.env, { routeFile, brokerTran
     transport.close();
     return details => new WandbPublisher(config, { ...details, transport: createWandbTransport(config, env) });
   } catch {
-    const error = new Error('W&B setup failed: require the reviewed owner-only Agent Vault route, or an existing matching proxy placeholder and verified TLS. Use --no-wandb for an explicitly offline run. No direct credential fallback is allowed.');
+    const error = new Error('W&B setup failed: supply a publishing environment or an explicit worker command. Use --no-wandb for offline operation. No credential fallback is allowed.');
     error.code = 'WANDB_SETUP';
     throw error;
   }
@@ -53,21 +53,33 @@ export async function loadWandb(file, env = process.env, { routeFile, brokerTran
 
 export function createWandbTransport(config, env = process.env, send = request) {
   validateWandbConfig(config);
-  requireThat(env.WANDB_API_KEY === config.api_key_placeholder, 'W&B proxy placeholder missing or mismatched');
-  const proxy = env.https_proxy ?? env.HTTPS_PROXY;
-  requireThat(typeof proxy === 'string' && ['http:', 'https:'].includes(new URL(proxy).protocol), 'W&B requires an HTTPS proxy route');
-  const [major, minor] = process.versions.node.split('.').map(Number);
-  requireThat((major === 22 && minor >= 21) || (major === 24 && minor >= 5) || major >= 25, 'W&B proxy support requires Node 22.21+ or 24.5+');
+  const key = env.WANDB_API_KEY;
+  requireThat(typeof key === 'string' && key.length > 0 && key.length <= 4096
+    && !/[\s\x00-\x1f\x7f-\x9f]/u.test(key), 'W&B requires a supplied API key');
   requireThat(env.NODE_TLS_REJECT_UNAUTHORIZED !== '0', 'W&B requires TLS verification');
-  // Deliberately exclude NO_PROXY so a brokered credential cannot bypass its
-  // route. The dedicated agent changes no global Node or shell settings.
-  const agent = new Agent({ proxyEnv: { HTTPS_PROXY: proxy }, keepAlive: true });
+  const protectedMode = env.INFISICAL_AGENT_VAULT_URL !== undefined || key.endsWith('_placeholder');
+  let proxyEnv = {};
+  if (protectedMode) {
+    requireThat(key === config.api_key_placeholder, 'W&B proxy placeholder missing or mismatched');
+    if (env.INFISICAL_AGENT_VAULT_URL !== undefined) {
+      requireThat(env.INFISICAL_AGENT_VAULT_URL === 'https://app.infisical.com', 'Unexpected W&B credential instance');
+    }
+    const proxy = env.https_proxy ?? env.HTTPS_PROXY;
+    requireThat(typeof proxy === 'string' && ['http:', 'https:'].includes(new URL(proxy).protocol), 'W&B requires an HTTPS proxy route');
+    const [major, minor] = process.versions.node.split('.').map(Number);
+    requireThat((major === 22 && minor >= 21) || (major === 24 && minor >= 5) || major >= 25, 'W&B proxy support requires Node 22.21+ or 24.5+');
+    // No NO_PROXY bypass for a protected credential.
+    proxyEnv = { HTTPS_PROXY: proxy };
+  }
+  // An explicit private agent prevents ambient proxy variables from changing
+  // ordinary supplied-key routing. Native sessions opt into their proxy above.
+  const agent = new Agent({ proxyEnv, keepAlive: true });
   const transport = (endpoint, body, signal) => new Promise((resolve, reject) => {
     requireThat(endpoint.startsWith('/') && !endpoint.startsWith('//'), 'Invalid W&B endpoint');
     const req = send(new URL(endpoint, 'https://api.wandb.ai'), {
       agent, method: 'POST', signal,
       headers: { 'Content-Type': 'application/json',
-        Authorization: `Basic ${Buffer.from(`api:${env.WANDB_API_KEY}`).toString('base64')}` },
+        Authorization: `Basic ${Buffer.from(`api:${key}`).toString('base64')}` },
     }, res => {
       let bytes = 0, result = '';
       res.on('data', chunk => {

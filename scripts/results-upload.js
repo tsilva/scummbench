@@ -1,9 +1,28 @@
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { root } from '../src/contracts.js';
 import { blobTransport, syncResults } from '../src/blob-results.js';
 
 const directory = path.join(root, '.internal/publication');
+
+export async function uploadResultsOutbox({ stateDirectory = directory,
+  configFile = path.join(root, 'local/results-publication.json'),
+  transport = blobTransport } = {}) {
+  const config = JSON.parse(await readFile(configFile, 'utf8'));
+  const incoming = JSON.parse(await readFile(path.join(stateDirectory, 'outbox.json'), 'utf8'));
+  const send = transport();
+  try {
+    const result = await syncResults(incoming, { url: config.url, send });
+    const file = path.join(stateDirectory, `receipt.${process.pid}.pending`);
+    await writeFile(file, JSON.stringify({ status: 'published', revision: incoming.revision, public_revision: result.revision,
+      checked_at: new Date().toISOString() }) + '\n', { flag: 'wx', mode: 0o600 });
+    await rename(file, path.join(stateDirectory, 'receipt.json'));
+    return result;
+  } finally { send.close?.(); }
+}
+
+async function main() {
 let send;
 try {
   if (process.argv.includes('--check-fake')) {
@@ -19,16 +38,12 @@ try {
     send = blobTransport();
     const result = await send('https://vercel.com/api/blob?limit=1', { authenticated: true });
     if (result.status !== 200 || !Array.isArray(result.value?.blobs)) throw new Error('Store identity check failed');
-    await writeFile(path.join(directory, 'identity-proof.json'), JSON.stringify({ success: true, read_only: true }) + '\n', { mode: 0o600 });
+    console.log(JSON.stringify({ ok: true, read_only: true, credential_mode: 'public-placeholder' }));
   } else {
-  const config = JSON.parse(await readFile(path.join(root, 'local/results-publication.json'), 'utf8'));
-  const incoming = JSON.parse(await readFile(path.join(directory, 'outbox.json'), 'utf8'));
-  send = blobTransport();
-  const result = await syncResults(incoming, { url: config.url, send });
-  const file = path.join(directory, `receipt.${process.pid}.pending`);
-  await writeFile(file, JSON.stringify({ status: 'published', revision: incoming.revision, public_revision: result.revision,
-    checked_at: new Date().toISOString() }) + '\n', { flag: 'wx', mode: 0o600 });
-  await rename(file, path.join(directory, 'receipt.json'));
+    await uploadResultsOutbox();
   }
 } catch { process.exitCode = 1; }
 finally { send?.close(); }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

@@ -1,4 +1,15 @@
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+
+// Explicit nonsecret operator argv; no shell evaluation or discovery.
+export function commandArguments(value) {
+  if (typeof value !== 'string' || Buffer.byteLength(value) > 65536) throw new Error('Invalid supplied command');
+  const argv = JSON.parse(value);
+  if (!Array.isArray(argv) || argv.length < 1 || argv.length > 32
+      || !argv.every(item => typeof item === 'string' && Buffer.byteLength(item) <= 4096
+        && !/[\u0000-\u001f\u007f-\u009f]/.test(item)) || !path.isAbsolute(argv[0])) throw new Error('Invalid supplied command');
+  return argv;
+}
 
 export class TimeoutError extends Error {}
 export class ProtocolError extends Error {}

@@ -5,17 +5,26 @@ import { mergeResults } from '../web/public-results.js';
 
 export const PLACEHOLDER = 'scummbench_results_placeholder';
 export const BLOB_API = 'https://vercel.com/api/blob';
-export function blobTransport(env = process.env) {
-  if (env.BLOB_READ_WRITE_TOKEN !== PLACEHOLDER || !env.HTTPS_PROXY || env.NO_PROXY || env.no_proxy
-    || !env.NODE_EXTRA_CA_CERTS || env.NODE_TLS_REJECT_UNAUTHORIZED === '0') throw new Error('Reviewed results proxy required');
-  const proxy = new URL(env.HTTPS_PROXY);
-  if (proxy.protocol !== 'http:' || proxy.hostname !== '127.0.0.1' || proxy.port !== '8283') throw new Error('Unexpected results proxy');
-  const agent = new Agent({ proxyEnv: { HTTPS_PROXY: env.HTTPS_PROXY }, keepAlive: true });
+export function blobTransport(env = process.env, sendRequest = request) {
+  const key = env.BLOB_READ_WRITE_TOKEN;
+  if (typeof key !== 'string' || !key || key.length > 4096 || /[\s\x00-\x1f\x7f-\x9f]/u.test(key)
+    || env.NODE_TLS_REJECT_UNAUTHORIZED === '0') throw new Error('Supplied Blob token and TLS verification required');
+  const protectedMode = env.INFISICAL_AGENT_VAULT_URL !== undefined || key.endsWith('_placeholder');
+  let proxyEnv = {};
+  if (protectedMode) {
+    if (key !== PLACEHOLDER || !env.HTTPS_PROXY || env.NO_PROXY || env.no_proxy
+      || !env.NODE_EXTRA_CA_CERTS) throw new Error('Reviewed results proxy required');
+    if (env.INFISICAL_AGENT_VAULT_URL !== undefined && env.INFISICAL_AGENT_VAULT_URL !== 'https://app.infisical.com') throw new Error('Unexpected results credential instance');
+    const proxy = new URL(env.HTTPS_PROXY);
+    if (proxy.protocol !== 'http:' || proxy.hostname !== '127.0.0.1' || proxy.port !== '8283') throw new Error('Unexpected results proxy');
+    proxyEnv = { HTTPS_PROXY: env.HTTPS_PROXY };
+  }
+  const agent = new Agent({ proxyEnv, keepAlive: true });
   const send = (url, { method = 'GET', body, headers = {}, authenticated = false } = {}) => new Promise((resolve, reject) => {
     const target = new URL(url);
     if (authenticated && (target.origin !== 'https://vercel.com' || !['/api/blob', '/api/blob/'].includes(target.pathname))) throw new Error('Unexpected Blob API');
-    const req = request(target, { agent, method, signal: AbortSignal.timeout(15000),
-      headers: { ...headers, ...(authenticated ? { Authorization: `Bearer ${PLACEHOLDER}`, 'x-api-version': '13' } : {}) } }, res => {
+    const req = sendRequest(target, { agent, method, signal: AbortSignal.timeout(15000),
+      headers: { ...headers, ...(authenticated ? { Authorization: `Bearer ${key}`, 'x-api-version': '13' } : {}) } }, res => {
       const chunks = []; let size = 0;
       res.on('data', chunk => { size += chunk.length; if (size > 2 * 1024 * 1024) req.destroy(new Error('Results size limit')); else chunks.push(chunk); });
       res.on('error', reject);

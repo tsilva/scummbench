@@ -22,7 +22,7 @@ const help = `ScummBench development runner (Node.js 22+)
   scummbench register-archive --archive PATH --source-repo /absolute/source-repo
   scummbench paths
 
-New runs publish to tsilva/scummbench-<ScummVM gameid> automatically through Agent Vault.
+New runs publish to tsilva/scummbench-<ScummVM gameid> using the supplied publishing environment.
 run optionally accepts --task PATH and --wandb CONFIG to override the default configuration.
 Use --no-wandb for an explicitly offline run. MCP accepts W&B options before --.
 SCUMMBENCH_WANDB_CONFIG selects an alternative configuration.

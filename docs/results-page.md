@@ -172,16 +172,14 @@ the labelled bootstrap snapshot. About reports the last publication time.
 {
   "version": 1,
   "enabled": true,
-  "launcher": "scripts/results-agent-vault.py",
   "url": "https://STORE.public.blob.vercel-storage.com/results/current.json"
 }
 ```
 
-Use the dedicated, reviewed Infisical results profile described in `AGENTS.md`.
-Its fixed client runs inside an OS sandbox with a non-secret placeholder and a
-short-lived Agent Vault session. The source key stays out of the client. Source
-renewal and protected code-hash updates are trusted administration; ordinary
-startup never fetches source credentials or falls back to another route.
+The optional external runner owns provider settings and the reviewed restricted
+transport. Its fixed client receives only a placeholder and scoped session. Source
+renewal stays separate from application startup, with no raw-key or alternate
+route fallback. Normal application code does not require a particular secret manager.
 
 After the route has passed fake-key and real publication checks, install retries:
 

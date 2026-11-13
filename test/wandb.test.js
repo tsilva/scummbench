@@ -26,12 +26,12 @@ async function publisher(t, transport, options = {}) {
 
 const reply = body => ({ data: { upsertBucket: { bucket: { name: body.variables.name } } } });
 
-test('W&B rejects credential files, unsafe destinations and raw keys', () => {
+test('W&B rejects credential files, unsafe destinations and invalid protected keys', () => {
   for (const patch of [{ api_key: 'secret' }, { entity: '../other' }, { project: 'space/name' }, { api_key_placeholder: 'secret' }]) {
     assert.throws(() => validateWandbConfig({ ...config, ...patch }));
   }
   assert.throws(() => createWandbTransport(config, {}));
-  assert.throws(() => createWandbTransport(config, { ...env, WANDB_API_KEY: 'raw-key' }));
+  assert.throws(() => createWandbTransport(config, { ...env, INFISICAL_AGENT_VAULT_URL: 'https://app.infisical.com', WANDB_API_KEY: 'raw-key' }));
   assert.throws(() => createWandbTransport(config, { WANDB_API_KEY: 'test_placeholder' }));
   assert.throws(() => createWandbTransport(config, { ...env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }));
 });
@@ -153,5 +153,26 @@ test('MCP opt-in via CLI or environment fails clearly before starting an unconfi
     assert.equal(result.status, 2);
     assert.match(result.stderr, /W&B setup failed/);
     assert.equal(result.stdout, '');
+  }
+});
+
+
+test('ordinary supplied W&B key uses fixed HTTPS without ambient proxy or cache', async () => {
+  let observed;
+  const transport = createWandbTransport(config, { WANDB_API_KEY: 'synthetic-user-key', HTTPS_PROXY: 'http://untrusted.invalid' }, (url, options, callback) => {
+    observed = { url, options };
+    const req = new EventEmitter();
+    req.end = () => { const res = new EventEmitter(); res.statusCode = 200;
+      callback(res); res.emit('data', Buffer.from('{"data":{}}')); res.emit('end'); };
+    return req;
+  });
+  try {
+    await transport('/graphql', {}, new AbortController().signal);
+    assert.equal(observed.url.href, 'https://api.wandb.ai/graphql');
+    assert.equal(observed.options.headers.Authorization, `Basic ${Buffer.from('api:synthetic-user-key').toString('base64')}`);
+    assert.deepEqual(observed.options.agent.options.proxyEnv, {});
+  } finally { transport.close(); }
+  for (const key of ['', ' ', 'bad\nkey', 'wrong_placeholder']) {
+    assert.throws(() => createWandbTransport(config, { WANDB_API_KEY: key }));
   }
 });

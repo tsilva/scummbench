@@ -42,7 +42,7 @@ connections need one refresh to adopt this capability. Node.js 22+ remains requi
   Existing assisted playthroughs are development evidence, not controlled scores.
 - All new fixed-task runs and interactive MCP sessions automatically publish live
   W&B results to `tsilva/scummbench-<gameid>`, using canonical ScummVM game IDs,
-  such as `queen`. The reviewed Agent Vault worker starts automatically;
+  such as `queen`. The configured publishing worker starts automatically;
   `--no-wandb` explicitly selects offline operation.
   Local evidence and grading remain authoritative;
   reporting does not expose evaluator state to players or make interactive play

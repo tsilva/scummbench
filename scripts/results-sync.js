@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile, rename, lstat, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { root } from '../src/contracts.js';
 import { createResultsFeed } from '../src/results-feed.js';
 import { validateResults } from '../web/results-model.js';
+import { uploadResultsOutbox } from './results-upload.js';
+import { commandArguments } from '../src/process.js';
+import { spawn } from 'node:child_process';
 
 if (process.argv.slice(2).join(' ') !== '--once') throw new Error('Use --once.');
 const directory = path.join(root, '.internal/publication');
@@ -12,7 +14,7 @@ async function config() {
   const info = await lstat(configFile);
   if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077)) throw new Error('Invalid publication configuration');
   const value = JSON.parse(await readFile(configFile, 'utf8'));
-  if (value.version !== 1 || value.enabled !== true || value.launcher !== 'scripts/results-agent-vault.py') throw new Error('Invalid publication configuration');
+  if (value.version !== 1 || value.enabled !== true || typeof value.url !== 'string') throw new Error('Invalid publication configuration');
   return value;
 }
 async function atomic(name, value) {
@@ -21,7 +23,7 @@ async function atomic(name, value) {
   await rename(pending, path.join(directory, name));
 }
 async function run() {
-  await config();
+  const publication = await config();
   for (const item of [path.join(root, '.internal'), directory]) {
     try { if ((await lstat(item)).isSymbolicLink()) throw new Error('Linked publication state'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -45,12 +47,18 @@ async function run() {
     try { receipt = JSON.parse(await readFile(path.join(directory, 'receipt.json'), 'utf8')); } catch { /* First publication. */ }
     if (receipt?.revision === data.revision && receipt.status === 'published') return;
     await atomic('outbox.json', data);
-    const status = await new Promise(resolve => {
-      const child = spawn('python3', ['-I', '-B', path.join(root, 'scripts/results-agent-vault.py')], {
-        cwd: root, stdio: 'ignore', env: { HOME: process.env.HOME, PATH: process.env.PATH },
-      });
-      child.once('error', () => resolve(1)); child.once('close', code => resolve(code));
-    });
+    let status = 0;
+    try {
+      if (process.env.SCUMMBENCH_RESULTS_UPLOADER_COMMAND === undefined) await uploadResultsOutbox();
+      else {
+        const [command, ...args] = commandArguments(process.env.SCUMMBENCH_RESULTS_UPLOADER_COMMAND);
+        status = await new Promise(resolve => {
+          const child = spawn(command, args, { cwd: root, stdio: 'ignore',
+            env: { HOME: process.env.HOME, PATH: process.env.PATH } });
+          child.once('error', () => resolve(1)); child.once('close', code => resolve(code ?? 1));
+        });
+      }
+    } catch { status = 1; }
     if (status !== 0) await atomic('status.json', { status: 'pending', revision: data.revision, reason: 'Publication unavailable; retrying automatically', checked_at: new Date().toISOString() });
     else await atomic('status.json', { status: 'published', revision: data.revision, checked_at: new Date().toISOString() });
   } finally { await rm(lock, { recursive: true }); }

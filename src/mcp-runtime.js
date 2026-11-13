@@ -7,6 +7,14 @@ import { gitRevision } from './backend.js';
 export class RuntimeError extends Error {}
 function requireThat(condition, message) { if (!condition) throw new RuntimeError(message); }
 
+export function gatewayEnvironment(env = process.env) {
+  return Object.fromEntries(['SCUMMWEB_DIR', 'SCUMMBENCH_RUNS_DIR', 'SCUMMBENCH_WANDB_CONFIG',
+    'SCUMMBENCH_WANDB_WORKER_COMMAND', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND',
+    'WANDB_API_KEY', 'BLOB_READ_WRITE_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
+    'NO_PROXY', 'no_proxy', 'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED']
+    .filter(key => env[key] !== undefined).map(key => [key, env[key]]));
+}
+
 const runtimeTool = {
   name: 'mcp_runtime',
   description: 'Inspect or reload this connection’s ScummBench gateway and ScummWEB backbone without disconnecting the MCP client. Reload requires clean committed checkouts and an idle game. Before reloading an active game, save with act, record its run_id, and close that session. Then Continue with the same run_id and load the saved slot. Never replay uncertain actions after a crash. Changes to tool schemas require a new host connection.',
@@ -45,8 +53,7 @@ function pinDirectory(argv, directory) {
 export async function supervise(argv, { input = process.stdin, output = process.stdout,
   checkReload = committedRevisions,
   makeClient = args => new McpClient(process.execPath, [path.join(root, 'src/cli.js'), 'mcp-worker', ...args], {
-    cwd: process.cwd(), env: Object.fromEntries(['SCUMMWEB_DIR', 'SCUMMBENCH_RUNS_DIR', 'SCUMMBENCH_WANDB_CONFIG']
-      .filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]])),
+    cwd: process.cwd(), env: gatewayEnvironment(),
   }),
 } = {}) {
   let client, handshake, catalog, lastStatus, profile, generation = 0, reloading = false, closing = false, initialized = false;

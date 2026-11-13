@@ -51,6 +51,16 @@ export function validateWorkerPost(endpoint, body, runId) {
   }
 }
 
+export async function checkWandbAccess({ transport } = {}) {
+  transport ??= createWandbTransport(defaultWandbConfig);
+  try {
+    const response = await transport('/graphql', { query: 'query ScummBenchIdentityCheck { viewer { id } }' }, AbortSignal.timeout(10000));
+    requireThat(typeof response.data?.viewer?.id === 'string' && response.data.viewer.id.length > 0,
+      'W&B identity check failed');
+    return { ok: true, read_only: true, credential_mode: 'public-placeholder' };
+  } finally { await transport.close?.(); }
+}
+
 export async function serveWandbWorker(runId, { transport } = {}) {
   requireThat(/^[a-f0-9-]{36}$/.test(runId), 'Invalid worker run ID');
   transport ??= createWandbTransport(defaultWandbConfig);
@@ -88,6 +98,9 @@ export async function serveWandbWorker(runId, { transport } = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { 'run-id': { type: 'string' } } });
-  serveWandbWorker(values['run-id']).catch(() => { process.exitCode = 1; });
+  const { values } = parseArgs({ options: { 'run-id': { type: 'string' }, check: { type: 'boolean' } } });
+  if (values.check) {
+    requireThat(!values['run-id'], 'Choose identity check or a run worker');
+    checkWandbAccess().then(result => console.log(JSON.stringify(result))).catch(() => { process.exitCode = 1; });
+  } else serveWandbWorker(values['run-id']).catch(() => { process.exitCode = 1; });
 }

@@ -2,9 +2,7 @@
 
 Every new fixed-task attempt and interactive MCP session automatically publishes
 scalar metrics to **`tsilva/scummbench-<canonical ScummVM gameid>`** while it runs.
-Flight of the Amazon Queen uses `tsilva/scummbench-queen`. No W&B flag, SDK,
-configuration environment variable or outer credential wrapper is needed once
-the reviewed local Agent Vault binding is installed. Local ScummBench journals
+Flight of the Amazon Queen uses `tsilva/scummbench-queen`. The configured publishing connection supplies authentication. Local ScummBench journals
 and grades remain authoritative.
 
 ## First use
@@ -35,53 +33,15 @@ MCP's W&B options belong before the `--` separator. Offline mode needs no W&B
 binding and overrides `SCUMMBENCH_WANDB_CONFIG`. Combining `--wandb` with
 `--no-wandb` is rejected.
 
-## Agent Vault setup
+## Worker contract
 
-The private binding is `local/wandb-agent-vault.json`, with this schema:
-
-```json
-{
-  "version": 1,
-  "launcher": "/absolute/path/to/reviewed/run-wandb",
-  "bundle": "local-scummbench-wandb",
-  "source": {
-    "instance": "https://app.infisical.com",
-    "project_id": "cba79865-b229-4181-909b-0da11a052799",
-    "environment": "prod",
-    "path": "/wandb",
-    "variable": "WANDB_API_KEY"
-  }
-}
-```
-
-The binding must be an owner-only regular file, outside version control, with an
-absolute executable launcher and the exact reviewed source/bundle. It contains
-no credential. Provisioning the launcher and Agent Vault service is a separate
-trusted administration step; a binding alone does not grant access. Missing or
-invalid bindings fail before gameplay unless reporting is explicitly disabled.
-The installed checkout already has this binding. Other installations must provision
-their own reviewed route rather than copy a machine-specific launcher path.
-
-ScummBench starts one publishing worker per run through that launcher. The
-launcher pins the Infisical instance, dedicated bundle, loopback proxy and CA
-fingerprint, supplies only `scummbench_wandb_placeholder` and process-local CA
-trust, and creates a 30-minute session revoked on exit. Before further uploads
-after 20 minutes, ScummBench restarts its worker with a fresh session and retains
-the same run ID and history offsets. Game and player processes receive none of
-these publishing environment variables. No SDK or runtime dependency is added.
-
-The maintainer explicitly authorized this W&B profile without an additional OS
-sandbox. Agent Vault brokers credentials; it does not isolate same-user processes.
-The exception does not alter other service policies or shared launchers. The
-source key is copied to Agent Vault only by a separate trusted administrative
-refresh, never during ordinary startup. Do not borrow another project's route,
-read cached keys or inject a real key into a client.
-
-Check the installed route without publishing a run:
-
-```sh
-python3 scripts/wandb-agent-vault.py --check
-```
+The normal path uses the supplied publishing environment. An explicit external
+worker command may provide stdio JSON-RPC instead; its interface is defined in
+`src/wandb-broker.js`. No checkout metadata discovers or starts credential tools.
+Each run owns its worker, preserves its run ID/history offsets across the existing
+20-minute restart cadence, and closes it on exit. External execution owns scoped
+session creation and revocation. Publishing settings never enter player/game
+processes. Missing access fails before gameplay; `--no-wandb` is offline.
 
 The dedicated service permits POST only to `api.wandb.ai:443`, at `/graphql` and
 eight explicit `/files/tsilva/scummbench-<id>` prefixes:
@@ -120,11 +80,10 @@ the CLI flag wins. The built-in default is equivalent to:
 `{gameid}` expands using the verified mapping. A literal project name is also
 supported, subject to the selected route's permissions and matching game metadata.
 The automatic worker accepts only the dedicated `tsilva/scummbench-<id>` scope.
-An override does not expand Agent Vault permissions. Configurations contain
+An override does not expand publishing permissions. Configurations contain
 metadata and a non-secret placeholder, never an API key.
 
-Explicitly wrapping a command with `scripts/wandb-agent-vault.py` remains
-supported. If already inside a matching reviewed proxy session, the publisher
+If already inside a matching reviewed proxy session, the publisher
 uses that session directly. Its `WANDB_API_KEY` must equal the configured
 placeholder and `HTTPS_PROXY` (or `https_proxy`) must be present. The private Node
 HTTPS agent ignores `NO_PROXY`, verifies TLS, and refuses redirects. The proxy

@@ -14,7 +14,8 @@ LABEL = 'eu.tsilva.scummbench.results'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--install', action='store_true', required=True)
-    parser.parse_args()
+    parser.add_argument('--uploader-command', help='Explicit nonsecret JSON argv for the publication worker')
+    args = parser.parse_args()
     config = ROOT / 'local/results-publication.json'
     if config.is_symlink() or config.stat().st_mode & 0o077 or json.loads(config.read_text()).get('enabled') is not True:
         raise ValueError('Reviewed publication configuration required')
@@ -31,6 +32,14 @@ def main():
              'ProcessType': 'Standard', 'StandardOutPath': str(directory / 'service.log'),
              'StandardErrorPath': str(directory / 'service.log'),
              'EnvironmentVariables': {'PATH': str(Path(node).parent) + ':/Library/Frameworks/Python.framework/Versions/3.11/bin:/usr/bin:/bin'}}
+    if args.uploader_command is not None:
+        command = json.loads(args.uploader_command)
+        if (len(args.uploader_command.encode()) > 65536 or not isinstance(command, list)
+            or not 1 <= len(command) <= 32 or any(not isinstance(item, str)
+            or len(item.encode()) > 4096 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in item)
+            for item in command) or not Path(command[0]).is_absolute()):
+            raise ValueError('Invalid supplied uploader command')
+        value['EnvironmentVariables']['SCUMMBENCH_RESULTS_UPLOADER_COMMAND'] = args.uploader_command
     content = plistlib.dumps(value)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():

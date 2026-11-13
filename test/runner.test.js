@@ -8,7 +8,7 @@ import { gradeReceipt } from '../src/backend.js';
 import { runAttempt, verifyRun } from '../src/runner.js';
 import { aggregate, wilson } from '../src/aggregate.js';
 import { loadWandb, WandbPublisher } from '../src/wandb.js';
-import { fixtureRoute } from './fixtures/wandb-route.js';
+import { fixtureWorkerEnvironment } from './fixtures/wandb-environment.js';
 
 async function attempt(t, { mode = 'success', agent = 'click', budgets = {}, reporting = false, loadReporting } = {}) {
   const temporary = await mkdtemp(path.join(tmpdir(), 'scummbench-test-'));
@@ -39,12 +39,12 @@ test('native success survives MCP exit; screenshots externalize and verify offli
 test('fixed tasks automatically select the canonical W&B project and retain grades if worker startup fails', async t => {
   const temporary = await mkdtemp(path.join(tmpdir(), 'scummbench-auto-wandb-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
-  const routeFile = await fixtureRoute(temporary);
+  const publishingEnv = fixtureWorkerEnvironment();
   for (const failed of [false, true]) {
     const posts = [];
     const run = await attempt(t, { loadReporting: file => {
       assert.equal(file, undefined);
-      return loadWandb(file, {}, { routeFile, brokerTransport: () => {
+      return loadWandb(file, publishingEnv, { brokerTransport: () => {
         const transport = async (endpoint, body) => {
           posts.push({ endpoint, body });
           return endpoint === '/graphql' ? { data: { upsertBucket: { bucket: { name: body.variables.name } } } } : {};
