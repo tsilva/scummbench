@@ -5,9 +5,11 @@ import { root } from './contracts.js';
 
 export function publicationEnvironment(env = process.env) {
   const names = ['HOME', 'PATH', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND'];
-  if (env.BLOB_READ_WRITE_TOKEN !== undefined) names.push('BLOB_READ_WRITE_TOKEN',
-    'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy',
-    'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED');
+  if (env.SCUMMBENCH_RESULTS_UPLOADER_COMMAND === undefined && env.BLOB_READ_WRITE_TOKEN !== undefined) {
+    names.push('BLOB_READ_WRITE_TOKEN',
+      'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy',
+      'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED');
+  }
   return Object.fromEntries(names.filter(name => env[name] !== undefined).map(name => [name, env[name]]));
 }
 

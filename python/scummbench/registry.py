@@ -113,13 +113,15 @@ def register(archive: Path, *, source_repo: Path, store: Path,
             **archive_display(stats)})
         launcher = store / 'scripts/results-sync.js'
         if launcher.is_file() and (store / 'local/results-publication.json').is_file():
+            direct_results = ('SCUMMBENCH_RESULTS_UPLOADER_COMMAND' not in os.environ
+                              and 'BLOB_READ_WRITE_TOKEN' in os.environ)
             try:
                 subprocess.Popen(['node', str(launcher), '--once'], cwd=store,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, start_new_session=True,
                                  env={name: value for name, value in os.environ.items()
                                       if name in {'HOME', 'PATH', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND'} or (
-                                          'BLOB_READ_WRITE_TOKEN' in os.environ and name in {
+                                          direct_results and name in {
                                               'BLOB_READ_WRITE_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY',
                                               'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy',
                                               'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS',

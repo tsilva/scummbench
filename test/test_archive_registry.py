@@ -2,11 +2,13 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python'))
 from scummbench.registry import register
@@ -48,6 +50,46 @@ class ArchiveRegistryTests(unittest.TestCase):
         self.assertIn('synthetic-game', text)
         self.assertFalse(register(self.archive, source_repo=self.root, store=self.root)['benchmark_added'])
         self.assertEqual((self.root / 'BENCHMARKS.md').read_text(), text)
+
+    def test_archive_wakeup_passes_credentials_only_to_a_direct_uploader(self):
+        (self.root / 'local').mkdir()
+        (self.root / 'local/results-publication.json').write_text('{}')
+        (self.root / 'scripts').mkdir()
+        launcher = self.root / 'scripts/results-sync.js'
+        launcher.write_text(
+            'const keys = ["SCUMMBENCH_RESULTS_UPLOADER_COMMAND", "BLOB_READ_WRITE_TOKEN",'
+            ' "HTTPS_PROXY", "INFISICAL_AGENT_VAULT_URL", "UNRELATED_TOKEN"];'
+            'require("node:fs").writeFileSync("wake.json",'
+            ' JSON.stringify(keys.filter(key => process.env[key] !== undefined)));'
+        )
+        child_processes = []
+        real_popen = subprocess.Popen
+
+        def capture_launcher(argv, *args, **kwargs):
+            child = real_popen(argv, *args, **kwargs)
+            if argv[:2] == ['node', str(launcher)]:
+                child_processes.append(child)
+            return child
+
+        ambient = {
+            'PATH': os.environ['PATH'],
+            'BLOB_READ_WRITE_TOKEN': 'fake-blob',
+            'HTTPS_PROXY': 'http://synthetic-proxy.invalid',
+            'INFISICAL_AGENT_VAULT_URL': 'https://app.infisical.com',
+            'UNRELATED_TOKEN': 'fake-other',
+        }
+        cases = [
+            ({**ambient, 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND': '["/synthetic/worker"]'},
+             ['SCUMMBENCH_RESULTS_UPLOADER_COMMAND']),
+            (ambient, ['BLOB_READ_WRITE_TOKEN', 'HTTPS_PROXY', 'INFISICAL_AGENT_VAULT_URL']),
+        ]
+        for environment, expected in cases:
+            with patch.dict(os.environ, environment, clear=True), patch.object(subprocess, 'Popen', capture_launcher):
+                register(self.archive, source_repo=self.root, store=self.root)
+            self.assertEqual(len(child_processes), 1)
+            child = child_processes.pop()
+            self.assertEqual(child.wait(timeout=5), 0)
+            self.assertEqual(json.loads((self.root / 'wake.json').read_text()), expected)
 
     def test_corrupt_trajectory_and_unproven_completion_are_rejected(self):
         trajectory = (self.archive / 'trajectory.jsonl').read_bytes()

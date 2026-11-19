@@ -177,7 +177,9 @@ the labelled bootstrap snapshot. About reports the last publication time.
 ```
 
 The optional external runner owns provider settings and the reviewed restricted
-transport. Its fixed client receives only a placeholder and scoped session. Source
+transport. When an uploader command is set, publication wakeups pass the command
+without inheriting a Blob token or proxy settings. The scoped client receives a
+placeholder and session from the runner. Source
 renewal stays separate from application startup, with no raw-key or alternate
 route fallback. Normal application code does not require a particular secret manager.
 

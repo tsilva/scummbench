@@ -8,11 +8,15 @@ export class RuntimeError extends Error {}
 function requireThat(condition, message) { if (!condition) throw new RuntimeError(message); }
 
 export function gatewayEnvironment(env = process.env) {
-  return Object.fromEntries(['SCUMMWEB_DIR', 'SCUMMBENCH_RUNS_DIR', 'SCUMMBENCH_WANDB_CONFIG',
-    'SCUMMBENCH_WANDB_WORKER_COMMAND', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND',
-    'WANDB_API_KEY', 'BLOB_READ_WRITE_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
-    'NO_PROXY', 'no_proxy', 'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED']
-    .filter(key => env[key] !== undefined).map(key => [key, env[key]]));
+  const names = ['SCUMMWEB_DIR', 'SCUMMBENCH_RUNS_DIR', 'SCUMMBENCH_WANDB_CONFIG',
+    'SCUMMBENCH_WANDB_WORKER_COMMAND', 'SCUMMBENCH_RESULTS_UPLOADER_COMMAND'];
+  const directWandb = env.SCUMMBENCH_WANDB_WORKER_COMMAND === undefined && env.WANDB_API_KEY !== undefined;
+  const directResults = env.SCUMMBENCH_RESULTS_UPLOADER_COMMAND === undefined && env.BLOB_READ_WRITE_TOKEN !== undefined;
+  if (directWandb) names.push('WANDB_API_KEY');
+  if (directResults) names.push('BLOB_READ_WRITE_TOKEN');
+  if (directWandb || directResults) names.push('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
+    'NO_PROXY', 'no_proxy', 'INFISICAL_AGENT_VAULT_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED');
+  return Object.fromEntries(names.filter(key => env[key] !== undefined).map(key => [key, env[key]]));
 }
 
 const runtimeTool = {

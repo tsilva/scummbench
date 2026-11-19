@@ -140,6 +140,41 @@ test('only trusted publication workers receive explicit executors or scoped envi
 });
 
 
+test('external publishers exclude their ambient credentials independently', () => {
+  const command = JSON.stringify([process.execPath, '/synthetic/worker.js']);
+  const ambient = {
+    WANDB_API_KEY: 'fake-wandb',
+    BLOB_READ_WRITE_TOKEN: 'fake-blob',
+    HTTPS_PROXY: 'http://synthetic-proxy.invalid',
+    INFISICAL_AGENT_VAULT_URL: 'https://app.infisical.com',
+  };
+  const wandbOnly = { ...ambient, SCUMMBENCH_WANDB_WORKER_COMMAND: command };
+  assert.deepEqual(gatewayEnvironment(wandbOnly), {
+    SCUMMBENCH_WANDB_WORKER_COMMAND: command,
+    BLOB_READ_WRITE_TOKEN: ambient.BLOB_READ_WRITE_TOKEN,
+    HTTPS_PROXY: ambient.HTTPS_PROXY,
+    INFISICAL_AGENT_VAULT_URL: ambient.INFISICAL_AGENT_VAULT_URL,
+  });
+  const resultsOnly = { ...ambient, SCUMMBENCH_RESULTS_UPLOADER_COMMAND: command };
+  assert.deepEqual(gatewayEnvironment(resultsOnly), {
+    SCUMMBENCH_RESULTS_UPLOADER_COMMAND: command,
+    WANDB_API_KEY: ambient.WANDB_API_KEY,
+    HTTPS_PROXY: ambient.HTTPS_PROXY,
+    INFISICAL_AGENT_VAULT_URL: ambient.INFISICAL_AGENT_VAULT_URL,
+  });
+  assert.deepEqual(gatewayEnvironment({ ...wandbOnly, SCUMMBENCH_RESULTS_UPLOADER_COMMAND: command }), {
+    SCUMMBENCH_WANDB_WORKER_COMMAND: command,
+    SCUMMBENCH_RESULTS_UPLOADER_COMMAND: command,
+  });
+  assert.deepEqual(publicationEnvironment(resultsOnly), {
+    SCUMMBENCH_RESULTS_UPLOADER_COMMAND: command,
+  });
+  // A malformed explicit selection still prevents credential fallback.
+  assert.deepEqual(publicationEnvironment({ ...ambient, SCUMMBENCH_RESULTS_UPLOADER_COMMAND: '' }), {
+    SCUMMBENCH_RESULTS_UPLOADER_COMMAND: '',
+  });
+});
+
 test('ordinary supplied Blob token uses fixed authenticated HTTPS and ignores ambient proxy', async () => {
   let observed;
   const transport = blobTransport({ BLOB_READ_WRITE_TOKEN: 'synthetic-user-token', HTTPS_PROXY: 'http://untrusted.invalid' }, (url, options, callback) => {

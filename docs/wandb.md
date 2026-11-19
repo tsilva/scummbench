@@ -40,7 +40,8 @@ worker command may provide stdio JSON-RPC instead; its interface is defined in
 `src/wandb-broker.js`. No checkout metadata discovers or starts credential tools.
 Each run owns its worker, preserves its run ID/history offsets across the existing
 20-minute restart cadence, and closes it on exit. External execution owns scoped
-session creation and revocation. Publishing settings never enter player/game
+session creation and revocation. When a worker command is set, the gateway leaves
+the parent process's W&B key out of the handoff. Publishing settings never enter player/game
 processes. Missing access fails before gameplay; `--no-wandb` is offline.
 
 The dedicated service permits POST only to `api.wandb.ai:443`, at `/graphql` and
